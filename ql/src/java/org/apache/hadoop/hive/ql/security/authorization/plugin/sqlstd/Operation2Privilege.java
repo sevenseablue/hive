@@ -220,9 +220,9 @@ public class Operation2Privilege {
     op2Priv.put(HiveOperationType.ALTERPARTITION_FILEFORMAT, PrivRequirement.newIOPrivRequirement
 (OWNER_PRIV_AR, OWNER_PRIV_AR));
     op2Priv.put(HiveOperationType.ALTERTABLE_LOCATION, PrivRequirement.newIOPrivRequirement
-(OWNER_PRIV_AR, INS_SEL_DEL_NOGRANT_AR));
+(OWNER_PRIV_AR, SEL_NOGRANT_AR));
     op2Priv.put(HiveOperationType.ALTERPARTITION_LOCATION, PrivRequirement.newIOPrivRequirement
-(OWNER_PRIV_AR, INS_SEL_DEL_NOGRANT_AR));
+(OWNER_PRIV_AR, SEL_NOGRANT_AR));
     op2Priv.put(HiveOperationType.ALTERTABLE_MERGEFILES, PrivRequirement.newIOPrivRequirement
 (OWNER_PRIV_AR, OWNER_PRIV_AR));
     op2Priv.put(HiveOperationType.ALTERPARTITION_MERGEFILES, PrivRequirement.newIOPrivRequirement
@@ -278,7 +278,7 @@ public class Operation2Privilege {
 (DEL_NOGRANT_AR, null));
     // in alter-table-add-partition, the table is output, and location is input
     op2Priv.put(HiveOperationType.ALTERTABLE_ADDPARTS, PrivRequirement.newIOPrivRequirement
-(INS_SEL_DEL_NOGRANT_AR, INS_NOGRANT_AR));
+(SEL_NOGRANT_AR, INS_NOGRANT_AR));
 
     // select with grant for exporting contents
     op2Priv.put(HiveOperationType.EXPORT, PrivRequirement.newIOPrivRequirement
@@ -377,7 +377,7 @@ public class Operation2Privilege {
 
     // require db ownership, if there is a file require SELECT , INSERT, and DELETE
     op2Priv.put(HiveOperationType.CREATETABLE, PrivRequirement.newPrivRequirementList(
-        new PrivRequirement(INS_SEL_DEL_NOGRANT_AR, IOType.INPUT),
+        new PrivRequirement(SEL_NOGRANT_AR, IOType.INPUT),
         new PrivRequirement(OWNER_PRIV_AR, HivePrivilegeObjectType.DATABASE)));
 
     op2Priv.put(HiveOperationType.ALTERDATABASE, PrivRequirement.newIOPrivRequirement
@@ -387,7 +387,7 @@ public class Operation2Privilege {
     op2Priv.put(HiveOperationType.DESCDATABASE, PrivRequirement.newIOPrivRequirement
 (null, null));
     op2Priv.put(HiveOperationType.DFS, PrivRequirement.newIOPrivRequirement
-(ADMIN_PRIV_AR, ADMIN_PRIV_AR));
+(null, null));
     op2Priv.put(HiveOperationType.RESET, PrivRequirement.newIOPrivRequirement
 (null, null));
     op2Priv.put(HiveOperationType.COMPILE, PrivRequirement.newIOPrivRequirement
