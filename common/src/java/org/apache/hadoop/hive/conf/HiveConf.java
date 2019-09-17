@@ -2118,7 +2118,7 @@ public class HiveConf extends Configuration {
     // whose constructor would not have been called
     HIVE_AUTHORIZATION_SQL_STD_AUTH_CONFIG_WHITELIST(
         "hive.security.authorization.sqlstd.confwhitelist", "",
-        "List of comma separated Java regexes. Configurations parameters that match these\n" +
+        "List of | separated Java regexes. Configurations parameters that match these\n" +
         "regexes can be modified by user when SQL standard authorization is enabled.\n" +
         "To get the default value, use the 'set <param>' command.\n" +
         "Note that the hive.conf.restricted.list checks are still enforced after the white list\n" +
