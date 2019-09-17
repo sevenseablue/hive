@@ -75,6 +75,10 @@ public class DfsProcessor implements CommandProcessor {
       }).substitute(ss.getConf(), command);
 
       String[] tokens = command.split("\\s+");
+      if (!tokens[0].trim().equals("-ls")){
+        console.printError("only dfs -ls is available.");
+        return new CommandProcessorResponse(1);
+      }
       CommandProcessorResponse authErrResp =
           CommandUtil.authorizeCommand(ss, HiveOperationType.DFS, Arrays.asList(tokens));
       if(authErrResp != null){
