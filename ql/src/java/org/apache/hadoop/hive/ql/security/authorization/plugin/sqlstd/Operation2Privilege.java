@@ -293,8 +293,8 @@ public class Operation2Privilege {
         new PrivRequirement(arr(SQLPrivTypeGrant.INSERT_NOGRANT, SQLPrivTypeGrant.DELETE_NOGRANT),
             IOType.OUTPUT, null, HivePrivilegeObjectType.TABLE_OR_VIEW),
         new PrivRequirement(OWNER_PRIV_AR, IOType.OUTPUT, null, HivePrivilegeObjectType.DATABASE)));
-    adminPrivOps.add(HiveOperationType.CREATEFUNCTION);
-    adminPrivOps.add(HiveOperationType.DROPFUNCTION);
+//    adminPrivOps.add(HiveOperationType.CREATEFUNCTION);
+//    adminPrivOps.add(HiveOperationType.DROPFUNCTION);
 
     // operations require select priv
     op2Priv.put(HiveOperationType.SHOWCOLUMNS, PrivRequirement.newIOPrivRequirement
@@ -352,9 +352,9 @@ public class Operation2Privilege {
     op2Priv.put(HiveOperationType.SHOWLOCKS, PrivRequirement.newIOPrivRequirement
 (null, null));
     op2Priv.put(HiveOperationType.CREATEFUNCTION, PrivRequirement.newIOPrivRequirement
-(null, ADMIN_PRIV_AR));
+(null, null));
     op2Priv.put(HiveOperationType.DROPFUNCTION, PrivRequirement.newIOPrivRequirement
-(null, ADMIN_PRIV_AR));
+(null, null));
     op2Priv.put(HiveOperationType.RELOADFUNCTION, PrivRequirement.newIOPrivRequirement
 (null, null));
     op2Priv.put(HiveOperationType.CREATEMACRO, PrivRequirement.newIOPrivRequirement
@@ -393,9 +393,9 @@ public class Operation2Privilege {
     op2Priv.put(HiveOperationType.COMPILE, PrivRequirement.newIOPrivRequirement
 (ADMIN_PRIV_AR, ADMIN_PRIV_AR));
     op2Priv.put(HiveOperationType.ADD, PrivRequirement.newIOPrivRequirement
-(ADMIN_PRIV_AR, ADMIN_PRIV_AR));
+(null, null));
     op2Priv.put(HiveOperationType.DELETE, PrivRequirement.newIOPrivRequirement
-(ADMIN_PRIV_AR, ADMIN_PRIV_AR));
+(null, null));
     // set command is currently not authorized through the API
     op2Priv.put(HiveOperationType.SET, PrivRequirement.newIOPrivRequirement
 (null, null));
