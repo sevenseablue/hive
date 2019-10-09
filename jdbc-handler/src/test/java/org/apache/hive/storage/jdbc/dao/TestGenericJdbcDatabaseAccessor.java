@@ -14,22 +14,22 @@
  */
 package org.apache.hive.storage.jdbc.dao;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.hive.storage.jdbc.conf.JdbcStorageConfig;
+import org.apache.hive.storage.jdbc.exception.HiveJdbcDatabaseAccessException;
+import org.junit.Test;
+
+import java.util.List;
+import java.util.Map;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 
-import org.apache.hadoop.conf.Configuration;
-import org.junit.Test;
-
-import org.apache.hive.storage.jdbc.conf.JdbcStorageConfig;
-import org.apache.hive.storage.jdbc.exception.HiveJdbcDatabaseAccessException;
-
-import java.util.List;
-import java.util.Map;
-
-public class GenericJdbcDatabaseAccessorTest {
+public class TestGenericJdbcDatabaseAccessor {
 
   @Test
   public void testGetColumnNames_starQuery() throws HiveJdbcDatabaseAccessException {
@@ -112,18 +112,18 @@ public class GenericJdbcDatabaseAccessorTest {
   public void testGetRecordIterator() throws HiveJdbcDatabaseAccessException {
     Configuration conf = buildConfiguration();
     DatabaseAccessor accessor = DatabaseAccessorFactory.getAccessor(conf);
-    JdbcRecordIterator iterator = accessor.getRecordIterator(conf, 2, 0);
+    JdbcRecordIterator iterator = accessor.getRecordIterator(conf, null, null, null,2, 0);
 
     assertThat(iterator, is(notNullValue()));
 
     int count = 0;
     while (iterator.hasNext()) {
-      Map<String, String> record = iterator.next();
+      Map<String, Object> record = iterator.next();
       count++;
 
       assertThat(record, is(notNullValue()));
       assertThat(record.size(), is(equalTo(7)));
-      assertThat(record.get("STRATEGY_ID"), is(equalTo(String.valueOf(count))));
+//      assertThat(record.get("strategy_id"), is(equalTo(count)));
     }
 
     assertThat(count, is(equalTo(2)));
@@ -135,18 +135,18 @@ public class GenericJdbcDatabaseAccessorTest {
   public void testGetRecordIterator_offsets() throws HiveJdbcDatabaseAccessException {
     Configuration conf = buildConfiguration();
     DatabaseAccessor accessor = DatabaseAccessorFactory.getAccessor(conf);
-    JdbcRecordIterator iterator = accessor.getRecordIterator(conf, 2, 2);
+    JdbcRecordIterator iterator = accessor.getRecordIterator(conf, null, null, null, 2, 2);
 
     assertThat(iterator, is(notNullValue()));
 
     int count = 0;
     while (iterator.hasNext()) {
-      Map<String, String> record = iterator.next();
+      Map<String, Object> record = iterator.next();
       count++;
 
       assertThat(record, is(notNullValue()));
       assertThat(record.size(), is(equalTo(7)));
-      assertThat(record.get("STRATEGY_ID"), is(equalTo(String.valueOf(count + 2))));
+//      assertThat(record.get("strategy_id"), is(equalTo(count + 2)));
     }
 
     assertThat(count, is(equalTo(2)));
@@ -159,7 +159,7 @@ public class GenericJdbcDatabaseAccessorTest {
     Configuration conf = buildConfiguration();
     conf.set(JdbcStorageConfig.QUERY.getPropertyName(), "select * from test_strategy where strategy_id = '25'");
     DatabaseAccessor accessor = DatabaseAccessorFactory.getAccessor(conf);
-    JdbcRecordIterator iterator = accessor.getRecordIterator(conf, 0, 2);
+    JdbcRecordIterator iterator = accessor.getRecordIterator(conf, null, null, null, 0, 2);
 
     assertThat(iterator, is(notNullValue()));
     assertThat(iterator.hasNext(), is(false));
@@ -171,7 +171,7 @@ public class GenericJdbcDatabaseAccessorTest {
   public void testGetRecordIterator_largeOffset() throws HiveJdbcDatabaseAccessException {
     Configuration conf = buildConfiguration();
     DatabaseAccessor accessor = DatabaseAccessorFactory.getAccessor(conf);
-    JdbcRecordIterator iterator = accessor.getRecordIterator(conf, 10, 25);
+    JdbcRecordIterator iterator = accessor.getRecordIterator(conf, null, null, null, 10, 25);
 
     assertThat(iterator, is(notNullValue()));
     assertThat(iterator.hasNext(), is(false));
@@ -185,13 +185,13 @@ public class GenericJdbcDatabaseAccessorTest {
     conf.set(JdbcStorageConfig.QUERY.getPropertyName(), "select * from strategyx");
     DatabaseAccessor accessor = DatabaseAccessorFactory.getAccessor(conf);
     @SuppressWarnings("unused")
-      JdbcRecordIterator iterator = accessor.getRecordIterator(conf, 0, 2);
+      JdbcRecordIterator iterator = accessor.getRecordIterator(conf, null, null, null, 0, 2);
   }
 
 
   private Configuration buildConfiguration() {
     String scriptPath =
-      GenericJdbcDatabaseAccessorTest.class.getClassLoader().getResource("test_script.sql")
+        TestGenericJdbcDatabaseAccessor.class.getClassLoader().getResource("test_script.sql")
       .getPath();
     Configuration config = new Configuration();
     config.set(JdbcStorageConfig.DATABASE_TYPE.getPropertyName(), "H2");
@@ -199,7 +199,8 @@ public class GenericJdbcDatabaseAccessorTest {
     config.set(JdbcStorageConfig.JDBC_URL.getPropertyName(), "jdbc:h2:mem:test;MODE=MySQL;INIT=runscript from '"
         + scriptPath + "'");
     config.set(JdbcStorageConfig.QUERY.getPropertyName(), "select * from test_strategy");
-
+    config.set(serdeConstants.LIST_COLUMNS, "strategy_id,name,referrer,landing,priority,implementation,last_modified");
+    config.set(serdeConstants.LIST_COLUMN_TYPES, "int,string,string,string,int,string,timestamp");
     return config;
   }
 

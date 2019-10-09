@@ -12,18 +12,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hive.storage.jdbc;
+package org.apache.hive.storage.jdbc.spitter;
 
-import org.junit.runner.RunWith;
-import org.junit.runners.Suite;
-import org.junit.runners.Suite.SuiteClasses;
+import org.apache.commons.lang3.tuple.MutablePair;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 
-import org.apache.hive.config.JdbcStorageConfigManagerTest;
-import org.apache.hive.storage.jdbc.QueryConditionBuilderTest;
-import org.apache.hive.storage.jdbc.dao.GenericJdbcDatabaseAccessorTest;
+import java.util.List;
 
-@RunWith(Suite.class)
-@SuiteClasses({ JdbcStorageConfigManagerTest.class, GenericJdbcDatabaseAccessorTest.class,
-        QueryConditionBuilderTest.class })
-public class TestSuite {
+public interface IntervalSplitter {
+  List<MutablePair<String, String>> getIntervals(String lowerBound, String upperBound, int numPartitions, TypeInfo typeInfo);
 }

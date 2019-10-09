@@ -141,6 +141,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
+import org.apache.hadoop.security.alias.CredentialProviderFactory;
 import org.apache.hadoop.util.Progressable;
 import org.apache.hive.common.util.ACLConfigurationParser;
 import org.apache.hive.common.util.ReflectionUtil;
@@ -3836,5 +3837,18 @@ public final class Utilities {
       logger.info("{} class path = unavailable for {}", prefix,
           loader == null ? "null" : loader.getClass().getSimpleName());
     }
+  }
+
+  public static String getPasswdFromKeystore(String keystore, String key) throws IOException {
+    String passwd = null;
+    if (keystore != null && key != null) {
+      Configuration conf = new Configuration();
+      conf.set(CredentialProviderFactory.CREDENTIAL_PROVIDER_PATH, keystore);
+      char[] pwdCharArray = conf.getPassword(key);
+      if (pwdCharArray != null) {
+        passwd = new String(pwdCharArray);
+      }
+    }
+    return passwd;
   }
 }
