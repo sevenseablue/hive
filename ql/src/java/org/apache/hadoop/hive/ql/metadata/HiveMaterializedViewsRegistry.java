@@ -122,9 +122,7 @@ public final class HiveMaterializedViewsRegistry {
     try {
       List<Table> tables = new ArrayList<Table>();
       for (String dbName : db.getAllDatabases()) {
-        // TODO: We should enhance metastore API such that it returns only
-        // materialized views instead of all tables
-        tables.addAll(db.getAllTableObjects(dbName));
+        tables.addAll(db.getAllMaterializedViewObjects(dbName));
       }
       pool.submit(new Loader(tables));
     } catch (HiveException e) {
@@ -142,9 +140,7 @@ public final class HiveMaterializedViewsRegistry {
     @Override
     public void run() {
       for (Table table : tables) {
-        if (table.isMaterializedView()) {
           addMaterializedView(table);
-        }
       }
     }
   }
