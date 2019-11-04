@@ -378,7 +378,7 @@ public class Operation2Privilege {
     // require db ownership, if there is a file require SELECT , INSERT, and DELETE
     op2Priv.put(HiveOperationType.CREATETABLE, PrivRequirement.newPrivRequirementList(
         new PrivRequirement(null, IOType.INPUT),
-        new PrivRequirement(OWNER_PRIV_AR, HivePrivilegeObjectType.DATABASE)));
+        new PrivRequirement(INS_SEL_DEL_NOGRANT_AR, HivePrivilegeObjectType.DATABASE)));
 
     op2Priv.put(HiveOperationType.ALTERDATABASE, PrivRequirement.newIOPrivRequirement
 (null, ADMIN_PRIV_AR));
