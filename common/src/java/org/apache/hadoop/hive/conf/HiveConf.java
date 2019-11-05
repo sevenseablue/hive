@@ -2129,7 +2129,7 @@ public class HiveConf extends Configuration {
 
     HIVE_AUTHORIZATION_SQL_STD_AUTH_CONFIG_WHITELIST_APPEND(
         "hive.security.authorization.sqlstd.confwhitelist.append", "",
-        "List of comma separated Java regexes, to be appended to list set in\n" +
+        "List of | separated Java regexes, to be appended to list set in\n" +
         "hive.security.authorization.sqlstd.confwhitelist. Using this list instead\n" +
         "of updating the original list means that you can append to the defaults\n" +
         "set by SQL standard authorization instead of replacing it entirely."),
