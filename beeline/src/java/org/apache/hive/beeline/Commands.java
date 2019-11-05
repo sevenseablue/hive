@@ -1078,7 +1078,6 @@ public class Commands {
    * Check if the input line is a multi-line command which needs to read further
    */
   public String handleMultiLineCmd(String line) throws IOException {
-    //When using -e, console reader is not initialized and command is always a single line
     int[] startQuote = {-1};
     line = removeComments(line,startQuote);
     while (isMultiLine(line) && beeLine.getOpts().isAllowMultiLineCommand()) {

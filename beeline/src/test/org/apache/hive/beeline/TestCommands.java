@@ -22,6 +22,8 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
+import java.io.IOException;
+
 public class TestCommands {
 
   @Test
@@ -43,6 +45,20 @@ public class TestCommands {
     assertEquals("\"'show --comments' tables\"", commands.removeComments("\"'show --comments' tables\" --comments",escape));
     assertEquals("'show --comments tables'", commands.removeComments("'show --comments tables' --comments",escape));
     assertEquals("'\"show --comments tables\"'", commands.removeComments("'\"show --comments tables\"' --comments",escape));
+  }
+
+  /**
+   * Test the commands directly call from beeline.
+   * @throws IOException
+   */
+  @Test
+  public void testBeelineCommands() throws IOException {
+ // avoid System.exit() call in beeline which causes JVM to exit and fails the test
+    System.setProperty(BeeLineOpts.PROPERTY_NAME_EXIT, "true");
+    // Verify the command without ';' at the end also works fine
+    BeeLine.mainWithInputRedirection(new String[] {"-u", "jdbc:hive2://", "-e", "select 3"}, null);
+    BeeLine.mainWithInputRedirection(
+        new String[] {"-u", "jdbc:hive2://", "-e", "create table t1(x int); show tables"}, null);
   }
 }
 
