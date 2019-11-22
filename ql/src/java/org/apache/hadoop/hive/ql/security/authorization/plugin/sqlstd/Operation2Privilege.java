@@ -325,7 +325,7 @@ public class Operation2Privilege {
         );
 
     op2Priv.put(HiveOperationType.LOAD, PrivRequirement.newIOPrivRequirement
-(INS_SEL_DEL_NOGRANT_AR,
+(SEL_NOGRANT_AR,
         arr(SQLPrivTypeGrant.INSERT_NOGRANT, SQLPrivTypeGrant.DELETE_NOGRANT)));
 
     // show create table is more sensitive information, includes table properties etc
