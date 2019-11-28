@@ -34,10 +34,9 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.apache.hadoop.fs.ContentSummary;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.LocalFileSystem;
-import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.*;
+import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.shims.HadoopShims;
 
@@ -50,9 +49,50 @@ import org.slf4j.LoggerFactory;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 
+import javax.swing.text.StyledEditorKit;
+
 public class TestFileUtils {
 
   public static final Logger LOG = LoggerFactory.getLogger(TestFileUtils.class);
+
+  private FileSystem getFs() {
+    Configuration conf = new Configuration();
+    conf.set("fs.viewfs.impl", org.apache.hadoop.fs.viewfs.ViewFileSystem.class.getName());
+    conf.set("fs.hdfs.impl", org.apache.hadoop.hdfs.DistributedFileSystem.class.getName());
+    String HADOOP_HOME = "/home/wangdawei/bigdata/qhadoop";
+    conf.addResource(new Path(HADOOP_HOME+"/etc/hadoop/core-site.xml"));
+    conf.addResource(new Path(HADOOP_HOME+"/etc/hadoop/hdfs-site.xml"));
+    conf.addResource(new Path(HADOOP_HOME+"/etc/hadoop/mountTable.xml"));
+    FileSystem fs = null;
+    try {
+//      URI uri = new URI("viewfs://qunarcluster/user/datadev");
+      fs = FileSystem.get(conf);
+    } catch (Exception e) {
+      LOG.warn("error:", e);
+    }
+    return fs;
+  }
+
+  @Test
+  public void isOwnerOfFileHierarchy() throws IOException {
+    FileSystem fs = getFs();
+    FileStatus fileStatus = fs.getFileStatus(new Path("viewfs://qunar22test/user/corphive/hive/warehouse/pp_hive.db/dw_pp_ods_device_active"));
+    String userName = "corphive";
+    FsAction fsAction = FsAction.READ;
+    boolean res = FileUtils.isOwnerOfFileHierarchy(fs, fileStatus, userName, true);
+    System.out.println(res);
+  }
+
+  @Test
+  public void isActionPermittedForFileHierarchy() throws Exception {
+    FileSystem fs = getFs();
+    FileStatus fileStatus = fs.getFileStatus(new Path("viewfs://qunar22test/user/corphive/hive/warehouse/pp_hive.db/dw_pp_ods_device_active"));
+    String userName = "pphive";
+    FsAction fsAction = FsAction.READ;
+    boolean permitted = FileUtils.isActionPermittedForFileHierarchy(getFs(), fileStatus, userName, fsAction);
+    System.out.println(permitted);
+    System.out.println("hello");
+  }
 
   @Test
   public void isPathWithinSubtree_samePrefix() {

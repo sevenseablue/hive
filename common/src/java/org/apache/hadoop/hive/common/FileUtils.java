@@ -352,6 +352,7 @@ public final class FileUtils {
     return getPathOrParentThatExists(fs, parentPath);
   }
 
+
   /**
    * Perform a check to determine if the user is able to access the file passed in.
    * If the user name passed in is different from the current user, this method will
@@ -416,7 +417,75 @@ public final class FileUtils {
     return isActionPermittedForFileHierarchy(fs,fileStatus,userName, action, true);
   }
 
-  public static boolean isActionPermittedForFileHierarchy(FileSystem fs, FileStatus fileStatus,
+  public static boolean isActionPermittedForFileHierarchy(final FileSystem fs, final FileStatus fileStatus,
+                                                          final String userName, final FsAction action, final boolean recurse) throws Exception {
+    boolean isDir = fileStatus.isDir();
+
+    FsAction dirActionNeeded = action;
+    if (isDir) {
+      // for dirs user needs execute privileges as well
+      dirActionNeeded.and(FsAction.EXECUTE);
+    }
+
+    UserGroupInformation ugi = Utils.getUGI();
+    String currentUser = ugi.getShortUserName();
+
+    if (userName == null || currentUser.equals(userName)) {
+      // No need to impersonate user, do the checks as the currently configured user.
+      return isActionPermittedForFileHierarchyOne(fs, fileStatus, userName, action, recurse);
+    } else {
+      // Otherwise, try user impersonation. Current user must be configured to do user impersonation.
+      UserGroupInformation proxyUser = UserGroupInformation.createProxyUser(
+              userName, UserGroupInformation.getLoginUser());
+      Object res = false;
+      try {
+        res = proxyUser.doAs(new PrivilegedExceptionAction<Object>() {
+          @Override
+          public Object run() throws Exception {
+            return isActionPermittedForFileHierarchyOne(fs, fileStatus, userName, action, recurse);
+          }
+        });
+      } finally {
+        FileSystem.closeAllForUGI(proxyUser);
+      }
+      return (boolean) res;
+    }
+  }
+
+
+  public static boolean isActionPermittedForFileHierarchyOne(FileSystem fs, FileStatus fileStatus,
+                                                              String userName, FsAction action, boolean recurse) throws Exception {
+    boolean isDir = fileStatus.isDir();
+
+    FsAction dirActionNeeded = action;
+    if (isDir) {
+      // for dirs user needs execute privileges as well
+      dirActionNeeded.and(FsAction.EXECUTE);
+    }
+
+    try {
+      ShimLoader.getHadoopShims().checkFileAccess(fs, fileStatus, action);
+    } catch (AccessControlException err) {
+      // Action not permitted for user
+      return false;
+    }
+
+    if ((!isDir) || (!recurse)) {
+      // no sub dirs to be checked
+      return true;
+    }
+    // check all children
+    FileStatus[] childStatuses = fs.listStatus(fileStatus.getPath());
+    for (FileStatus childStatus : childStatuses) {
+      // check children recursively - recurse is true if we're here.
+      if (!isActionPermittedForFileHierarchyOne(fs, childStatus, userName, action, true)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  public static boolean isActionPermittedForFileHierarchyOrig(FileSystem fs, FileStatus fileStatus,
       String userName, FsAction action, boolean recurse) throws Exception {
     boolean isDir = fileStatus.isDir();
 
@@ -441,7 +510,7 @@ public final class FileUtils {
     FileStatus[] childStatuses = fs.listStatus(fileStatus.getPath());
     for (FileStatus childStatus : childStatuses) {
       // check children recursively - recurse is true if we're here.
-      if (!isActionPermittedForFileHierarchy(fs, childStatus, userName, action, true)) {
+      if (!isActionPermittedForFileHierarchyOrig(fs, childStatus, userName, action, true)) {
         return false;
       }
     }
