@@ -86,6 +86,7 @@ public class TestFileUtils {
   @Test
   public void isActionPermittedForFileHierarchy() throws Exception {
     FileSystem fs = getFs();
+//    FileStatus fileStatus = fs.getFileStatus(new Path("viewfs://qunar22test/user/corphive/hive/warehouse/test.db/t2"));
     FileStatus fileStatus = fs.getFileStatus(new Path("viewfs://qunar22test/user/corphive/hive/warehouse/pp_hive.db/dw_pp_ods_device_active"));
     String userName = "pphive";
     FsAction fsAction = FsAction.READ;

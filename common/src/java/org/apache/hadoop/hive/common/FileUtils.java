@@ -429,7 +429,6 @@ public final class FileUtils {
 
     UserGroupInformation ugi = Utils.getUGI();
     String currentUser = ugi.getShortUserName();
-
     if (userName == null || currentUser.equals(userName)) {
       // No need to impersonate user, do the checks as the currently configured user.
       return isActionPermittedForFileHierarchyOne(fs, fileStatus, userName, action, recurse);
@@ -439,15 +438,21 @@ public final class FileUtils {
               userName, UserGroupInformation.getLoginUser());
       Object res = false;
       try {
-        res = proxyUser.doAs(new PrivilegedExceptionAction<Object>() {
+        res = proxyUser.doAs(new PrivilegedExceptionAction<Boolean>() {
           @Override
-          public Object run() throws Exception {
-            return isActionPermittedForFileHierarchyOne(fs, fileStatus, userName, action, recurse);
+          public Boolean run() throws Exception {
+            FileSystem fsAsUser = FileSystem.get(fs.getUri(), fs.getConf());
+            boolean res = isActionPermittedForFileHierarchyOne(fsAsUser, fileStatus, userName, action, recurse);
+            return res;
           }
         });
+      } catch (AccessControlException err) {
+        // Action not permitted for user
+        return false;
       } finally {
         FileSystem.closeAllForUGI(proxyUser);
       }
+      System.out.println(res);
       return (boolean) res;
     }
   }
@@ -463,6 +468,8 @@ public final class FileUtils {
       dirActionNeeded.and(FsAction.EXECUTE);
     }
 
+    UserGroupInformation ugi = Utils.getUGI();
+    String currentUser = ugi.getShortUserName();
     try {
       ShimLoader.getHadoopShims().checkFileAccess(fs, fileStatus, action);
     } catch (AccessControlException err) {
