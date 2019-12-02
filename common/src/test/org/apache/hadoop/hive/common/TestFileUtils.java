@@ -29,7 +29,10 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
+import java.nio.file.FileSystems;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
@@ -59,7 +62,8 @@ public class TestFileUtils {
     Configuration conf = new Configuration();
     conf.set("fs.viewfs.impl", org.apache.hadoop.fs.viewfs.ViewFileSystem.class.getName());
     conf.set("fs.hdfs.impl", org.apache.hadoop.hdfs.DistributedFileSystem.class.getName());
-    String HADOOP_HOME = "/home/wangdawei/bigdata/qhadoop";
+    String HADOOP_HOME = System.getenv("HADOOP_HOME");
+    System.out.println("HADOOP_HOME: "+HADOOP_HOME);
     conf.addResource(new Path(HADOOP_HOME+"/etc/hadoop/core-site.xml"));
     conf.addResource(new Path(HADOOP_HOME+"/etc/hadoop/hdfs-site.xml"));
     conf.addResource(new Path(HADOOP_HOME+"/etc/hadoop/mountTable.xml"));
@@ -79,7 +83,7 @@ public class TestFileUtils {
     FileStatus fileStatus = fs.getFileStatus(new Path("viewfs://qunar22test/user/corphive/hive/warehouse/pp_hive.db/dw_pp_ods_device_active"));
     String userName = "corphive";
     FsAction fsAction = FsAction.READ;
-    boolean res = FileUtils.isOwnerOfFileHierarchy(fs, fileStatus, userName, true);
+    boolean res = FileUtils.isOwnerOfFileHierarchy(fs, fileStatus, userName, true, 0);
     System.out.println(res);
   }
 
@@ -89,7 +93,7 @@ public class TestFileUtils {
 //    FileStatus fileStatus = fs.getFileStatus(new Path("viewfs://qunar22test/user/corphive/hive/warehouse/test.db/t2"));
     FileStatus fileStatus = fs.getFileStatus(new Path("viewfs://qunar22test/user/corphive/hive/warehouse/pp_hive.db/dw_pp_ods_device_active"));
     String userName = "pphive";
-    FsAction fsAction = FsAction.READ;
+    FsAction fsAction = FsAction.WRITE;
     boolean permitted = FileUtils.isActionPermittedForFileHierarchy(getFs(), fileStatus, userName, fsAction);
     System.out.println(permitted);
     System.out.println("hello");
@@ -269,5 +273,10 @@ public class TestFileUtils {
 
     Assert.assertTrue(FileUtils.copy(mockFs, copySrc, mockFs, copyDst, false, false, conf, shims));
     verify(shims).runDistCp(copySrc, copyDst, conf);
+  }
+
+  public static void main(String[] args) throws Exception {
+
+    new TestFileUtils().isActionPermittedForFileHierarchy();
   }
 }

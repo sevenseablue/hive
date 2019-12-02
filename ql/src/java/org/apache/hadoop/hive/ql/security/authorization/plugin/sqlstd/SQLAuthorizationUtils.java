@@ -451,7 +451,7 @@ public class SQLAuthorizationUtils {
     Set<SQLPrivTypeGrant> privs = new HashSet<SQLPrivTypeGrant>();
     LOG.debug("Checking fs privileges for {} {}",
         fileStatus.toString(), (recurse? "recursively":"without recursion"));
-    if (FileUtils.isOwnerOfFileHierarchy(fs, fileStatus, userName, recurse)) {
+    if (FileUtils.isOwnerOfFileHierarchy(fs, fileStatus, userName, recurse, 0)) {
       privs.add(SQLPrivTypeGrant.OWNER_PRIV);
     }
     if (FileUtils.isActionPermittedForFileHierarchy(fs, fileStatus, userName, FsAction.WRITE, recurse)) {

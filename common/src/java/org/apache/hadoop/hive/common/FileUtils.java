@@ -431,7 +431,7 @@ public final class FileUtils {
     String currentUser = ugi.getShortUserName();
     if (userName == null || currentUser.equals(userName)) {
       // No need to impersonate user, do the checks as the currently configured user.
-      return isActionPermittedForFileHierarchyOne(fs, fileStatus, userName, action, recurse);
+      return isActionPermittedForFileHierarchyOne(fs, fileStatus, userName, action, recurse, 0);
     } else {
       // Otherwise, try user impersonation. Current user must be configured to do user impersonation.
       UserGroupInformation proxyUser = UserGroupInformation.createProxyUser(
@@ -442,7 +442,7 @@ public final class FileUtils {
           @Override
           public Boolean run() throws Exception {
             FileSystem fsAsUser = FileSystem.get(fs.getUri(), fs.getConf());
-            boolean res = isActionPermittedForFileHierarchyOne(fsAsUser, fileStatus, userName, action, recurse);
+            boolean res = isActionPermittedForFileHierarchyOne(fsAsUser, fileStatus, userName, action, recurse, 0);
             return res;
           }
         });
@@ -459,7 +459,7 @@ public final class FileUtils {
 
 
   public static boolean isActionPermittedForFileHierarchyOne(FileSystem fs, FileStatus fileStatus,
-                                                              String userName, FsAction action, boolean recurse) throws Exception {
+                                                              String userName, FsAction action, boolean recurse, int depth) throws Exception {
     boolean isDir = fileStatus.isDir();
 
     FsAction dirActionNeeded = action;
@@ -481,11 +481,16 @@ public final class FileUtils {
       // no sub dirs to be checked
       return true;
     }
+
+    if (depth >= 1){
+      return true;
+    }
+
     // check all children
     FileStatus[] childStatuses = fs.listStatus(fileStatus.getPath());
     for (FileStatus childStatus : childStatuses) {
       // check children recursively - recurse is true if we're here.
-      if (!isActionPermittedForFileHierarchyOne(fs, childStatus, userName, action, true)) {
+      if (!isActionPermittedForFileHierarchyOne(fs, childStatus, userName, action, true, depth+1)) {
         return false;
       }
     }
@@ -558,12 +563,38 @@ public final class FileUtils {
   }
   public static boolean isOwnerOfFileHierarchy(FileSystem fs, FileStatus fileStatus, String userName)
       throws IOException {
-    return isOwnerOfFileHierarchy(fs, fileStatus, userName, true);
+    return isOwnerOfFileHierarchy(fs, fileStatus, userName, true, 0);
   }
 
   public static boolean isOwnerOfFileHierarchy(FileSystem fs, FileStatus fileStatus,
-      String userName, boolean recurse)
+      String userName, boolean recurse, int depth)
       throws IOException {
+    if (!fileStatus.getOwner().equals(userName)) {
+      return false;
+    }
+
+    if ((!fileStatus.isDir()) || (!recurse)) {
+      // no sub dirs to be checked
+      return true;
+    }
+
+    if (depth >= 1){
+      return true;
+    }
+    // check all children
+    FileStatus[] childStatuses = fs.listStatus(fileStatus.getPath());
+    for (FileStatus childStatus : childStatuses) {
+      // check children recursively - recurse is true if we're here.
+      if (!isOwnerOfFileHierarchy(fs, childStatus, userName, true, depth+1)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  public static boolean isOwnerOfFileHierarchy(FileSystem fs, FileStatus fileStatus,
+                                               String userName, boolean recurse)
+          throws IOException {
     if (!fileStatus.getOwner().equals(userName)) {
       return false;
     }

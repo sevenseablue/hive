@@ -158,7 +158,7 @@ public class Operation2Privilege {
 (null, null));
 
     op2Priv.put(HiveOperationType.DROPTABLE, PrivRequirement.newIOPrivRequirement
-(OWNER_PRIV_AR, null));
+(INS_SEL_DEL_WGRANT_AR, null));
     op2Priv.put(HiveOperationType.DESCTABLE, PrivRequirement.newIOPrivRequirement
 (SEL_NOGRANT_AR, null));
     op2Priv.put(HiveOperationType.SHOWPARTITIONS, PrivRequirement.newIOPrivRequirement
