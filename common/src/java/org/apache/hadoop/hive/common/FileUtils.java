@@ -452,7 +452,6 @@ public final class FileUtils {
       } finally {
         FileSystem.closeAllForUGI(proxyUser);
       }
-      System.out.println(res);
       return (boolean) res;
     }
   }
