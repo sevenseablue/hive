@@ -147,6 +147,13 @@ public class SQLStdHiveAuthorizationValidator implements HiveAuthorizationValida
           + authenticator.getUserName() + ". Context Info: " + context;
       LOG.debug(msg);
     }
+    //TODO 增加过滤规则
+    try {
+      IMetaStoreClient metastoreClient = metastoreClientFactory.getHiveMetastoreClient();
+      return SQLAuthorizationUtils.filterListObjects(listObjs,authenticator,metastoreClient ,privController);
+    } catch (Exception e) {
+      LOG.error("filterListCmdObjects failed",e);
+    }
     return listObjs;
   }
 
