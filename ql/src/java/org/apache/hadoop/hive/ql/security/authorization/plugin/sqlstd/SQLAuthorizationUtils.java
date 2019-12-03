@@ -17,18 +17,12 @@
  */
 package org.apache.hadoop.hive.ql.security.authorization.plugin.sqlstd;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import org.apache.hadoop.hive.ql.security.HiveAuthenticationProvider;
+import org.apache.hadoop.hive.ql.security.authorization.plugin.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.fs.FileStatus;
@@ -52,14 +46,7 @@ import org.apache.hadoop.hive.metastore.api.PrivilegeGrantInfo;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.ql.security.authorization.AuthorizationUtils;
-import org.apache.hadoop.hive.ql.security.authorization.plugin.HiveAccessControlException;
-import org.apache.hadoop.hive.ql.security.authorization.plugin.HiveAuthzPluginException;
-import org.apache.hadoop.hive.ql.security.authorization.plugin.HiveAuthzSessionContext;
 import org.apache.hadoop.hive.ql.security.authorization.plugin.HiveAuthzSessionContext.CLIENT_TYPE;
-import org.apache.hadoop.hive.ql.security.authorization.plugin.HiveOperationType;
-import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrincipal;
-import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilege;
-import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilegeObject;
 import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilegeObject.HivePrivilegeObjectType;
 import org.apache.thrift.TException;
 
@@ -537,6 +524,113 @@ public class SQLAuthorizationUtils {
       return ctxBuilder.build();
     }
     return ctx;
+  }
+
+  /**
+   * filter database table
+   * @return
+   */
+  public static List<HivePrivilegeObject> filterListObjects(List<HivePrivilegeObject> listObjs,
+                                                     HiveAuthenticationProvider authenticator,
+                                                     IMetaStoreClient metastoreClient,
+                                                     SQLStdHiveAccessControllerWrapper privController) {
+    Long start = System.currentTimeMillis();
+    if (listObjs == null || listObjs.size() == 0) {
+      return listObjs;
+    }
+
+    try {
+      if (authenticator.getUserName() ==null || privController.isUserAdmin()) {
+        return listObjs;
+      }
+    } catch (HiveAuthzPluginException e) {
+      e.printStackTrace();
+    }
+    LOG.info("filterListObjects before:{}",listObjs.size());
+    //now only databases and dbs
+    HivePrivilegeObject obj = listObjs.get(0);
+    switch (obj.getType()) {
+      case DATABASE:
+        listObjs = filterDbList(listObjs,authenticator,metastoreClient,privController);
+        break;
+      case TABLE_OR_VIEW:
+        listObjs =  filterTblList(listObjs,authenticator,privController);
+        break;
+      default:
+        LOG.info("now only support database and table");
+        break;
+    }
+    Long end = System.currentTimeMillis();
+    LOG.info("filterListObjects after:{}",listObjs.size());
+    LOG.info("filterListObjects cost : {}",(end-start)/1000);
+    return listObjs;
+
+  }
+
+  /**
+   * file no privs dbs
+   * @param listObjs
+   * @param authenticator
+   * @param metastoreClient
+   * @param privController
+   * @return
+   */
+  private static List<HivePrivilegeObject> filterDbList(List<HivePrivilegeObject> listObjs,
+                                                        HiveAuthenticationProvider authenticator,
+                                                        IMetaStoreClient metastoreClient,
+                                                        SQLStdHiveAccessControllerWrapper privController) {
+    String userName = authenticator.getUserName();
+    listObjs = listObjs.stream().filter(obj -> {
+      try {
+        return SQLAuthorizationUtils.getPrivilegesFromMetaStore(metastoreClient, userName,
+                obj, privController.getCurrentRoleNames(), privController.isUserAdmin()).getRequiredPrivilegeSet().size() != 0;
+      } catch (HiveAuthzPluginException e) {
+        e.printStackTrace();
+      }
+      return false;
+    }).collect(Collectors.toList());
+    return listObjs;
+  }
+
+
+  /**
+   * filet no privs tables
+   * @param listObjs
+   * @param authenticator
+   * @param privController
+   * @return
+   */
+  private static List<HivePrivilegeObject> filterTblList(List<HivePrivilegeObject> listObjs,
+                                                         HiveAuthenticationProvider authenticator,
+                                                         SQLStdHiveAccessControllerWrapper privController) {
+    try {
+      long start = System.currentTimeMillis();
+      String userName = authenticator.getUserName();
+      if (authenticator.getUserName() ==null || privController.isUserAdmin()) {
+        LOG.info("prosess starting can not get username;user admin return all objs");
+        return listObjs;
+      }
+      List<String> roleNames = privController.getCurrentRoleNames();
+      //get user and role all privs objs
+      HivePrincipal userPrincipal = new HivePrincipal(userName, HivePrincipal.HivePrincipalType.USER);
+      HivePrivilegeObject nullPrivObj = new HivePrivilegeObject(null,null,null,null);
+      List<HivePrivilegeInfo> hivePrivilegeInfos = privController.showPrivileges(userPrincipal, nullPrivObj);
+      //get role privs
+      for (String roleName : roleNames) {
+        HivePrincipal rolePrincipal = new HivePrincipal(roleName, HivePrincipal.HivePrincipalType.ROLE);
+        List<HivePrivilegeInfo> hivePrivilegeInfos1 = privController.showPrivileges(rolePrincipal, nullPrivObj);
+        hivePrivilegeInfos.addAll(hivePrivilegeInfos1);
+      }
+      Set<String> tableNames = hivePrivilegeInfos.stream()
+              .map(privilegeInfo -> privilegeInfo.getObject().getObjectName())
+              .collect(Collectors.toSet());
+      //remove no privs obj
+      listObjs = listObjs.stream().filter(obj -> tableNames.contains(obj.getObjectName())).collect(Collectors.toList());
+    } catch (HiveAccessControlException | HiveAuthzPluginException e) {
+      e.printStackTrace();
+    }
+
+    return listObjs;
   }
 
 }
