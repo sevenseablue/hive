@@ -21,6 +21,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.fs.Path;
@@ -78,17 +81,25 @@ public class SQLStdHiveAuthorizationValidator implements HiveAuthorizationValida
     String userName = authenticator.getUserName();
     IMetaStoreClient metastoreClient = metastoreClientFactory.getHiveMetastoreClient();
 
+    boolean isExt = false;
+    for (HivePrivilegeObject hObj: inputHObjs){
+      isExt = isExt || isTblExt(hiveOpType, hObj, context);
+    }
+    for (HivePrivilegeObject hObj: outputHObjs){
+      isExt = isExt || isTblExt(hiveOpType, hObj, context);
+    }
+    LOG.info("## isExt "+isExt);
     // check privileges on input and output objects
     List<String> deniedMessages = new ArrayList<String>();
-    checkPrivileges(hiveOpType, inputHObjs, metastoreClient, userName, IOType.INPUT, deniedMessages);
-    checkPrivileges(hiveOpType, outputHObjs, metastoreClient, userName, IOType.OUTPUT, deniedMessages);
+    checkPrivileges(hiveOpType, inputHObjs, metastoreClient, userName, IOType.INPUT, isExt, deniedMessages);
+    checkPrivileges(hiveOpType, outputHObjs, metastoreClient, userName, IOType.OUTPUT, isExt, deniedMessages);
 
     SQLAuthorizationUtils.assertNoDeniedPermissions(new HivePrincipal(userName,
         HivePrincipalType.USER), hiveOpType, deniedMessages);
   }
 
   private void checkPrivileges(HiveOperationType hiveOpType, List<HivePrivilegeObject> hiveObjects,
-      IMetaStoreClient metastoreClient, String userName, IOType ioType, List<String> deniedMessages)
+      IMetaStoreClient metastoreClient, String userName, IOType ioType, boolean isExt, List<String> deniedMessages)
       throws HiveAuthzPluginException, HiveAccessControlException {
 
     if (hiveObjects == null) {
@@ -99,7 +110,7 @@ public class SQLStdHiveAuthorizationValidator implements HiveAuthorizationValida
     for (HivePrivilegeObject hiveObj : hiveObjects) {
 
       RequiredPrivileges requiredPrivs = Operation2Privilege.getRequiredPrivs(hiveOpType, hiveObj,
-          ioType);
+          ioType, isExt);
 
       if(requiredPrivs.getRequiredPrivilegeSet().isEmpty()){
         // no privileges required, so don't need to check this object privileges
@@ -166,6 +177,29 @@ public class SQLStdHiveAuthorizationValidator implements HiveAuthorizationValida
   public List<HivePrivilegeObject> applyRowFilterAndColumnMasking(HiveAuthzContext context,
       List<HivePrivilegeObject> privObjs) throws SemanticException {
     return null;
+  }
+
+  public boolean isTblExt(HiveOperationType hiveOpType, HivePrivilegeObject hObj, HiveAuthzContext context){
+    if (context.getCommandString().toLowerCase().trim().matches("\\s*create\\s+external\\s+table.*")){
+      return true;
+    }
+    IMetaStoreClient metastoreClient = null;
+    try {
+      metastoreClient = metastoreClientFactory.getHiveMetastoreClient();
+    } catch (HiveAuthzPluginException e) {
+      e.printStackTrace();
+    }
+    if (hObj.getType() == HivePrivilegeObject.HivePrivilegeObjectType.TABLE_OR_VIEW) {
+      try {
+        Table table = metastoreClient.getTable(hObj.getDbname(), hObj.getObjectName());
+        if (table.getTableType().equals(TableType.EXTERNAL_TABLE.name())){
+          return true;
+        }
+      } catch (TException e) {
+        e.printStackTrace();
+      }
+    }
+    return false;
   }
 
 }

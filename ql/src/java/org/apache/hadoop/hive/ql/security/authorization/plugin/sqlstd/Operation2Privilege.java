@@ -24,17 +24,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.hadoop.hive.ql.security.authorization.plugin.HiveOperationType;
-import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilegeObject;
+import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
+import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.ql.security.authorization.plugin.*;
 import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilegeObject.HivePrivObjectActionType;
 import org.apache.hadoop.hive.ql.security.authorization.plugin.HivePrivilegeObject.HivePrivilegeObjectType;
 
 import com.google.common.base.Preconditions;
+import org.apache.thrift.TException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Mapping of operation to its required input and output privileges
  */
 public class Operation2Privilege {
+
+  public static final Logger LOG = LoggerFactory.getLogger(Operation2Privilege.class);
 
   public enum IOType {
     INPUT, OUTPUT
@@ -113,8 +122,9 @@ public class Operation2Privilege {
   }
 
   private static Map<HiveOperationType, List<PrivRequirement>> op2Priv;
+  public static Map<HiveOperationType, List<PrivRequirement>> op2PrivExt;
   private static List<HiveOperationType> adminPrivOps;
-
+  private static HiveMetastoreClientFactory metastoreClientFactory = new HiveMetastoreClientFactoryImpl();
   private static SQLPrivTypeGrant[] OWNER_PRIV_AR = arr(SQLPrivTypeGrant.OWNER_PRIV);
   private static SQLPrivTypeGrant[] SEL_NOGRANT_AR = arr(SQLPrivTypeGrant.SELECT_NOGRANT);
   private static SQLPrivTypeGrant[] SEL_GRANT_AR = arr(SQLPrivTypeGrant.SELECT_WGRANT);
@@ -136,6 +146,7 @@ public class Operation2Privilege {
   static {
     adminPrivOps = new ArrayList<HiveOperationType>();
     op2Priv = new HashMap<HiveOperationType, List<PrivRequirement>>();
+    op2PrivExt = new HashMap<HiveOperationType, List<PrivRequirement>>();
 
     op2Priv.put(HiveOperationType.EXPLAIN, PrivRequirement.newIOPrivRequirement
 (SEL_NOGRANT_AR,
@@ -283,6 +294,8 @@ public class Operation2Privilege {
     // in alter-table-add-partition, the table is output, and location is input
     op2Priv.put(HiveOperationType.ALTERTABLE_ADDPARTS, PrivRequirement.newIOPrivRequirement
 (INS_SEL_DEL_NOGRANT_AR, INS_NOGRANT_AR));
+    op2PrivExt.put(HiveOperationType.ALTERTABLE_ADDPARTS, PrivRequirement.newIOPrivRequirement
+            (SEL_NOGRANT_AR, SEL_NOGRANT_AR));
 
     // select with grant for exporting contents
     op2Priv.put(HiveOperationType.EXPORT, PrivRequirement.newIOPrivRequirement
@@ -382,6 +395,9 @@ public class Operation2Privilege {
     // require db ownership, if there is a file require SELECT , INSERT, and DELETE
     op2Priv.put(HiveOperationType.CREATETABLE, PrivRequirement.newPrivRequirementList(
         new PrivRequirement(INS_SEL_DEL_WGRANT_AR, IOType.INPUT),
+        new PrivRequirement(INS_SEL_DEL_NOGRANT_AR, HivePrivilegeObjectType.DATABASE)));
+    op2PrivExt.put(HiveOperationType.CREATETABLE, PrivRequirement.newPrivRequirementList(
+        new PrivRequirement(SEL_NOGRANT_AR, IOType.INPUT),
         new PrivRequirement(INS_SEL_DEL_NOGRANT_AR, HivePrivilegeObjectType.DATABASE)));
 
     op2Priv.put(HiveOperationType.ALTERDATABASE, PrivRequirement.newIOPrivRequirement
@@ -485,8 +501,16 @@ public class Operation2Privilege {
    * @return
    */
   public static RequiredPrivileges getRequiredPrivs(HiveOperationType hiveOpType,
-      HivePrivilegeObject hObj, IOType ioType) {
-    List<PrivRequirement> opPrivs = op2Priv.get(hiveOpType);
+      HivePrivilegeObject hObj, IOType ioType, boolean isExt) {
+
+    List<PrivRequirement> opPrivs;
+    if(isExt && op2PrivExt.containsKey(hiveOpType)){
+      LOG.info("##tbl ext " + hiveOpType);
+      opPrivs = op2PrivExt.get(hiveOpType);
+    } else{
+      LOG.info("##tbl "+ hiveOpType);
+      opPrivs = op2Priv.get(hiveOpType);
+    }
     Preconditions.checkNotNull(opPrivs, "Privileges for " + hiveOpType + " are null");
     RequiredPrivileges reqPrivs = new RequiredPrivileges();
 
