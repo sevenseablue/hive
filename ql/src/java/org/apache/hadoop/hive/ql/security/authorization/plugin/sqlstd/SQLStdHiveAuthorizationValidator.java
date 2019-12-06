@@ -82,12 +82,8 @@ public class SQLStdHiveAuthorizationValidator implements HiveAuthorizationValida
     IMetaStoreClient metastoreClient = metastoreClientFactory.getHiveMetastoreClient();
 
     boolean isExt = false;
-    for (HivePrivilegeObject hObj: inputHObjs){
-      isExt = isExt || isTblExt(hiveOpType, hObj, context);
-    }
-    for (HivePrivilegeObject hObj: outputHObjs){
-      isExt = isExt || isTblExt(hiveOpType, hObj, context);
-    }
+    isExt = updateTblExt(isExt, inputHObjs, hiveOpType, context);
+    isExt = updateTblExt(isExt, outputHObjs, hiveOpType, context);
     LOG.info("## isExt "+isExt);
     // check privileges on input and output objects
     List<String> deniedMessages = new ArrayList<String>();
@@ -179,8 +175,17 @@ public class SQLStdHiveAuthorizationValidator implements HiveAuthorizationValida
     return null;
   }
 
+  public boolean updateTblExt(boolean isExt, List<HivePrivilegeObject> inputHObjs, HiveOperationType hiveOpType, HiveAuthzContext context){
+    if (inputHObjs != null) {
+      for (HivePrivilegeObject hObj : inputHObjs) {
+        isExt = isExt || isTblExt(hiveOpType, hObj, context);
+      }
+    }
+    return isExt;
+  }
+
   public boolean isTblExt(HiveOperationType hiveOpType, HivePrivilegeObject hObj, HiveAuthzContext context){
-    if (context.getCommandString().toLowerCase().trim().matches("\\s*create\\s+external\\s+table.*")){
+    if (context.getCommandString().toLowerCase().trim().matches("(?s)\\s*create\\s+external\\s+table.*")){
       return true;
     }
     IMetaStoreClient metastoreClient = null;

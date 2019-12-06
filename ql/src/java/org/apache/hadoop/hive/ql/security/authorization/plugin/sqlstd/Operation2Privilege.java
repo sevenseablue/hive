@@ -126,8 +126,9 @@ public class Operation2Privilege {
   private static List<HiveOperationType> adminPrivOps;
   private static HiveMetastoreClientFactory metastoreClientFactory = new HiveMetastoreClientFactoryImpl();
   private static SQLPrivTypeGrant[] OWNER_PRIV_AR = arr(SQLPrivTypeGrant.OWNER_PRIV);
-  private static SQLPrivTypeGrant[] SEL_NOGRANT_AR = arr(SQLPrivTypeGrant.SELECT_NOGRANT);
   private static SQLPrivTypeGrant[] SEL_GRANT_AR = arr(SQLPrivTypeGrant.SELECT_WGRANT);
+  private static SQLPrivTypeGrant[] SEL_NOGRANT_AR = arr(SQLPrivTypeGrant.SELECT_NOGRANT);
+  private static SQLPrivTypeGrant[] SEL_OWN_AR = arr(SQLPrivTypeGrant.SELECT_NOGRANT, SQLPrivTypeGrant.OWNER_PRIV);
   private static SQLPrivTypeGrant[] ADMIN_PRIV_AR = arr(SQLPrivTypeGrant.ADMIN_PRIV);
   private static SQLPrivTypeGrant[] INS_NOGRANT_AR = arr(SQLPrivTypeGrant.INSERT_NOGRANT);
   private static SQLPrivTypeGrant[] DEL_NOGRANT_AR = arr(SQLPrivTypeGrant.DELETE_NOGRANT);
@@ -136,11 +137,11 @@ public class Operation2Privilege {
       arr(SQLPrivTypeGrant.INSERT_NOGRANT,
           SQLPrivTypeGrant.DELETE_NOGRANT,
           SQLPrivTypeGrant.SELECT_NOGRANT);
-  private static SQLPrivTypeGrant[] INS_SEL_DEL_WGRANT_AR =
-          arr(SQLPrivTypeGrant.INSERT_WGRANT,
-                  SQLPrivTypeGrant.DELETE_WGRANT,
-                  SQLPrivTypeGrant.SELECT_WGRANT);
-
+  private static SQLPrivTypeGrant[] INS_SEL_DEL_OWN_AR =
+          arr(SQLPrivTypeGrant.INSERT_NOGRANT,
+                  SQLPrivTypeGrant.DELETE_NOGRANT,
+                  SQLPrivTypeGrant.SELECT_NOGRANT,
+                  SQLPrivTypeGrant.OWNER_PRIV);
 
 
   static {
@@ -169,7 +170,7 @@ public class Operation2Privilege {
 (null, null));
 
     op2Priv.put(HiveOperationType.DROPTABLE, PrivRequirement.newIOPrivRequirement
-(INS_SEL_DEL_WGRANT_AR, null));
+(INS_SEL_DEL_OWN_AR, null));
     op2Priv.put(HiveOperationType.DESCTABLE, PrivRequirement.newIOPrivRequirement
 (SEL_NOGRANT_AR, null));
     op2Priv.put(HiveOperationType.SHOWPARTITIONS, PrivRequirement.newIOPrivRequirement
@@ -394,7 +395,7 @@ public class Operation2Privilege {
 
     // require db ownership, if there is a file require SELECT , INSERT, and DELETE
     op2Priv.put(HiveOperationType.CREATETABLE, PrivRequirement.newPrivRequirementList(
-        new PrivRequirement(INS_SEL_DEL_WGRANT_AR, IOType.INPUT),
+        new PrivRequirement(INS_SEL_DEL_OWN_AR, IOType.INPUT),
         new PrivRequirement(INS_SEL_DEL_NOGRANT_AR, HivePrivilegeObjectType.DATABASE)));
     op2PrivExt.put(HiveOperationType.CREATETABLE, PrivRequirement.newPrivRequirementList(
         new PrivRequirement(SEL_NOGRANT_AR, IOType.INPUT),
