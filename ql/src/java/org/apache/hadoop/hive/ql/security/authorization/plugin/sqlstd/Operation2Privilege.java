@@ -183,7 +183,7 @@ public class Operation2Privilege {
     // requirement on inputs just in case some input object like file
     // uri is added later
     op2Priv.put(HiveOperationType.MSCK, PrivRequirement.newIOPrivRequirement
-(ADMIN_PRIV_AR, INS_NOGRANT_AR));
+(ADMIN_PRIV_AR, SEL_NOGRANT_AR));
 
 
     //alter table commands require table ownership
