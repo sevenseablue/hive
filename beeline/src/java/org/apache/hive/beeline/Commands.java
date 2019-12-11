@@ -1058,7 +1058,9 @@ public class Commands {
     StringBuilder builder = new StringBuilder();
     for (int index = 0; index < line.length(); index++) {
       if (startQuote[0] == -1 && index < line.length() - 1 && line.charAt(index) == '-' && line.charAt(index + 1) =='-') {
-        return builder.toString().trim();
+        //return builder.toString().trim();
+        for (; index < line.length() && line.charAt(index) != '\n'; ++index);
+        continue;
       }
 
       char letter = line.charAt(index);
