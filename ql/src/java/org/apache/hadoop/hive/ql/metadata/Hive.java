@@ -31,19 +31,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
@@ -98,6 +87,9 @@ import org.apache.hadoop.hive.ql.optimizer.listbucketingpruner.ListBucketingPrun
 import org.apache.hadoop.hive.ql.plan.AddPartitionDesc;
 import org.apache.hadoop.hive.ql.plan.DropTableDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
+import org.apache.hadoop.hive.ql.security.authorization.plugin.sqlstd.RequiredPrivileges;
+import org.apache.hadoop.hive.ql.security.authorization.plugin.sqlstd.SQLAuthorizationUtils;
+import org.apache.hadoop.hive.ql.security.authorization.plugin.sqlstd.SQLPrivTypeGrant;
 import org.apache.hadoop.hive.ql.session.CreateTableAutomaticGrant;
 import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.serde2.Deserializer;
@@ -804,13 +796,30 @@ public class Hive {
       if (ss != null) {
         CreateTableAutomaticGrant grants = ss.getCreateTableGrants();
         if (grants != null) {
-          principalPrivs.setUserPrivileges(grants.getUserGrants());
+          Path tblPath = tbl.getDataLocation();
+//          if(tblPath == null) {
+//            tblPath = new Path(getMSC().getDatabase(tbl.getDbName()).getLocationUri(), tbl.getTableName());
+//          }
+          if (tbl.getTableType().name().equals("EXTERNAL_TABLE") && tblPath != null){
+            RequiredPrivileges availPrivs = SQLAuthorizationUtils.getPrivilegesFromFS(tblPath, ss.getConf(), ss.getUserName());
+            Map<String, List<PrivilegeGrantInfo>> mapNew = new HashMap<>();
+            List<PrivilegeGrantInfo> privilegeGrantInfoListCopy = new LinkedList<>();
+            privilegeGrantInfoListCopy.addAll(grants.getUserGrants().get(ss.getUserName()));
+            if(!availPrivs.getRequiredPrivilegeSet().contains(SQLPrivTypeGrant.INSERT_NOGRANT)){
+              privilegeGrantInfoListCopy.remove(new PrivilegeGrantInfo("INSERT", -1, ss.getUserName(), PrincipalType.USER, true));
+              privilegeGrantInfoListCopy.remove(new PrivilegeGrantInfo("INSERT", -1, ss.getUserName(), PrincipalType.USER, false));
+            }
+            mapNew.put(ss.getUserName(), privilegeGrantInfoListCopy);
+            principalPrivs.setUserPrivileges(mapNew);
+          } else {
+            principalPrivs.setUserPrivileges(grants.getUserGrants());
+          }
           principalPrivs.setGroupPrivileges(grants.getGroupGrants());
           Map<String, List<PrivilegeGrantInfo>> roleGrants = new HashMap<>();
           if(grants.getRoleGrants()!=null) {
             roleGrants.putAll(grants.getRoleGrants());
           }
-          roleGrants.put(tbl.getDbName()+"_r", getGrantorInfoList("select"));
+          roleGrants.put(tbl.getDbName()+"_r", getGrantorInfoList("SELECT"));
           principalPrivs.setRolePrivileges(roleGrants);
           tTbl.setPrivileges(principalPrivs);
         }
