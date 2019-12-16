@@ -133,6 +133,7 @@ public class Operation2Privilege {
   private static SQLPrivTypeGrant[] INS_NOGRANT_AR = arr(SQLPrivTypeGrant.INSERT_NOGRANT);
   private static SQLPrivTypeGrant[] DEL_NOGRANT_AR = arr(SQLPrivTypeGrant.DELETE_NOGRANT);
   private static SQLPrivTypeGrant[] UPD_NOGRANT_AR = arr(SQLPrivTypeGrant.UPDATE_NOGRANT);
+  private static SQLPrivTypeGrant[] SEL_DEL_NOGRANT_AR = arr(SQLPrivTypeGrant.DELETE_NOGRANT, SQLPrivTypeGrant.SELECT_NOGRANT);
   private static SQLPrivTypeGrant[] INS_SEL_DEL_NOGRANT_AR =
       arr(SQLPrivTypeGrant.INSERT_NOGRANT,
           SQLPrivTypeGrant.DELETE_NOGRANT,
@@ -171,6 +172,8 @@ public class Operation2Privilege {
 
     op2Priv.put(HiveOperationType.DROPTABLE, PrivRequirement.newIOPrivRequirement
 (INS_SEL_DEL_OWN_AR, null));
+    op2PrivExt.put(HiveOperationType.DROPTABLE, PrivRequirement.newIOPrivRequirement
+            (SEL_DEL_NOGRANT_AR, null));
     op2Priv.put(HiveOperationType.DESCTABLE, PrivRequirement.newIOPrivRequirement
 (SEL_NOGRANT_AR, null));
     op2Priv.put(HiveOperationType.SHOWPARTITIONS, PrivRequirement.newIOPrivRequirement
