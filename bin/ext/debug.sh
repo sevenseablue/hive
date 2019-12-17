@@ -62,7 +62,7 @@ parse_debug(){
 
 set_debug_defaults(){
   export HIVE_DEBUG_RECURSIVE="y"
-  port="address=8000"
+  port="address=127.0.0.1:8000"
   main_suspend="suspend=y"
   child_suspend="suspend=n"
 }
