@@ -801,11 +801,12 @@ public class Hive {
 //            tblPath = new Path(getMSC().getDatabase(tbl.getDbName()).getLocationUri(), tbl.getTableName());
 //          }
           if (tbl.getTableType().name().equals("EXTERNAL_TABLE") && tblPath != null){
-            RequiredPrivileges availPrivs = SQLAuthorizationUtils.getPrivilegesFromFS(tblPath, ss.getConf(), ss.getUserName());
             Map<String, List<PrivilegeGrantInfo>> mapNew = new HashMap<>();
             List<PrivilegeGrantInfo> privilegeGrantInfoListCopy = new LinkedList<>();
             privilegeGrantInfoListCopy.addAll(grants.getUserGrants().get(ss.getUserName()));
-            if(!availPrivs.getRequiredPrivilegeSet().contains(SQLPrivTypeGrant.INSERT_NOGRANT)){
+//            RequiredPrivileges availPrivs = SQLAuthorizationUtils.getPrivilegesFromFS(tblPath, ss.getConf(), ss.getUserName());
+//            if(!availPrivs.getRequiredPrivilegeSet().contains(SQLPrivTypeGrant.INSERT_NOGRANT)){
+            if(!SQLAuthorizationUtils.hasWritePrivFromFS(tblPath, ss.getConf(), ss.getUserName())){
               privilegeGrantInfoListCopy.remove(new PrivilegeGrantInfo("INSERT", -1, ss.getUserName(), PrincipalType.USER, true));
               privilegeGrantInfoListCopy.remove(new PrivilegeGrantInfo("INSERT", -1, ss.getUserName(), PrincipalType.USER, false));
             }

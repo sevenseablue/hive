@@ -453,6 +453,45 @@ public class SQLAuthorizationUtils {
     return privs;
   }
 
+  public static boolean hasWritePrivFromFS(Path filePath, HiveConf conf,
+                                           String userName) throws HiveAuthzPluginException {
+    FileSystem fs;
+    try {
+      fs = FileSystem.get(filePath.toUri(), conf);
+
+      // There are a couple of possibilities to consider here to see if we should recurse or not.
+      // a) Path is a singular directory/file and exists
+      //        recurse=true to check all its children if applicable
+      // b) Path is a singular entity that does not exist
+      //        recurse=false to check its parent - this is likely a case of
+      //        needing to create a dir that does not exist yet.
+
+      FileStatus fileStatus = FileUtils.getFileStatusOrNull(fs, filePath);
+      boolean pickParent = (fileStatus == null); // did we find the file/dir itself?
+      if (pickParent){
+        fileStatus = FileUtils.getPathOrParentThatExists(fs, filePath.getParent());
+      }
+      Path path = fileStatus.getPath();
+      if (pickParent){
+        LOG.debug("Checking fs privileges for parent path {} for nonexistent {}",
+                path.toString(), filePath.toString());
+        if (FileUtils.isActionPermittedForFileHierarchy(fs, fileStatus, userName, FsAction.WRITE, false)) {
+          return true;
+        }
+      } else {
+        LOG.debug("Checking fs privileges for path itself {}, originally specified as {}",
+                path.toString(), filePath.toString());
+        if (FileUtils.isActionPermittedForFileHierarchy(fs, fileStatus, userName, FsAction.WRITE, true)) {
+          return true;
+        }
+      }
+    } catch (Exception e) {
+      String msg = "Error getting permissions for " + filePath + ": " + e.getMessage();
+      throw new HiveAuthzPluginException(msg, e);
+    }
+    return false;
+  }
+
   public static void assertNoDeniedPermissions(HivePrincipal hivePrincipal,
       HiveOperationType hiveOpType, List<String> deniedMessages) throws HiveAccessControlException {
     if (deniedMessages.size() != 0) {
