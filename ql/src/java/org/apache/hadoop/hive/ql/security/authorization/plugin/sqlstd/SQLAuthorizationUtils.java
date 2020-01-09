@@ -367,6 +367,14 @@ public class SQLAuthorizationUtils {
     // get the 'available privileges' from file system
 
     RequiredPrivileges availPrivs = new RequiredPrivileges();
+
+    if(UserDbLoc.existsUserLocs(userName, filePath.toUri().getPath())){
+      availPrivs.addPrivilege(SQLPrivTypeGrant.OWNER_PRIV);
+      availPrivs.addPrivilege(SQLPrivTypeGrant.INSERT_NOGRANT);
+      availPrivs.addPrivilege(SQLPrivTypeGrant.SELECT_NOGRANT);
+      availPrivs.addPrivilege(SQLPrivTypeGrant.DELETE_NOGRANT);
+      return availPrivs;
+    }
     // check file system permission
     FileSystem fs;
     try {
@@ -436,6 +444,7 @@ public class SQLAuthorizationUtils {
       String userName, FileSystem fs,
       FileStatus fileStatus, boolean recurse) throws Exception {
     Set<SQLPrivTypeGrant> privs = new HashSet<SQLPrivTypeGrant>();
+
     LOG.debug("Checking fs privileges for {} {}",
         fileStatus.toString(), (recurse? "recursively":"without recursion"));
     if (FileUtils.isOwnerOfFileHierarchy(fs, fileStatus, userName, recurse, 0)) {
@@ -643,7 +652,6 @@ public class SQLAuthorizationUtils {
                                                          HiveAuthenticationProvider authenticator,
                                                          SQLStdHiveAccessControllerWrapper privController) {
     try {
-      long start = System.currentTimeMillis();
       String userName = authenticator.getUserName();
       if (authenticator.getUserName() ==null || privController.isUserAdmin()) {
         LOG.info("prosess starting can not get username;user admin return all objs");
@@ -660,6 +668,7 @@ public class SQLAuthorizationUtils {
         List<HivePrivilegeInfo> hivePrivilegeInfos1 = privController.showPrivileges(rolePrincipal, nullPrivObj);
         hivePrivilegeInfos.addAll(hivePrivilegeInfos1);
       }
+      //TODO may be a db name is add to tableNames
       Set<String> tableNames = hivePrivilegeInfos.stream()
               .map(privilegeInfo -> privilegeInfo.getObject().getObjectName())
               .collect(Collectors.toSet());

@@ -896,6 +896,11 @@ public class DummyRawStoreForJdoConnection implements RawStore {
     throws InvalidObjectException, MetaException {
     // TODO Auto-generated method stub
   }
+
+  @Override
+  public List<Database> getAllDatabase() {
+    return null;
+  }
 }
 
 

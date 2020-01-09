@@ -880,4 +880,9 @@ public class DummyRawStoreControlledCommit implements RawStore, Configurable {
     throws InvalidObjectException, MetaException {
     // TODO Auto-generated method stub
   }
+
+  @Override
+  public List<Database> getAllDatabase() {
+    return null;
+  }
 }

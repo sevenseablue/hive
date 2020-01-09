@@ -116,6 +116,8 @@ public interface RawStore extends Configurable {
 
   public abstract List<String> getAllDatabases() throws MetaException;
 
+  public abstract List<Database> getAllDatabase();
+
   public abstract boolean createType(Type type);
 
   public abstract Type getType(String typeName);

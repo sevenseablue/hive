@@ -707,6 +707,25 @@ public class ObjectStore implements RawStore, Configurable {
   }
 
   @Override
+  public List<Database> getAllDatabase() {
+    List<Database> allDbs = new ArrayList<>();
+    boolean commited = false;
+    Query query = null;
+    try {
+      openTransaction();
+      query = pm.newQuery(MDatabase.class);
+      Collection<MDatabase> mDatabases = (Collection<MDatabase>) query.execute();
+      commited = commitTransaction();
+      for (MDatabase mdb : mDatabases) {
+        allDbs.add(convertToDb(mdb));
+      }
+    } finally {
+      rollbackAndCleanup(commited, query);
+    }
+    return allDbs;
+  }
+
+  @Override
   public Database getDatabase(String name) throws NoSuchObjectException {
     MetaException ex = null;
     Database db = null;
@@ -1441,6 +1460,21 @@ public class ObjectStore implements RawStore, Configurable {
             mtbl.getViewOriginalText(), mtbl.getViewExpandedText(), tableType);
     table.setRewriteEnabled(mtbl.isRewriteEnabled());
     return table;
+  }
+
+  private Database convertToDb(MDatabase mdb) {
+    if (mdb == null) {
+      return null;
+    }
+
+    Database db = new Database();
+    db.setName(mdb.getName());
+    db.setDescription(mdb.getDescription());
+    db.setLocationUri(mdb.getLocationUri());
+    db.setOwnerName(mdb.getOwnerName());
+    String type = mdb.getOwnerType();
+    db.setOwnerType((null == type || type.trim().isEmpty()) ? null : PrincipalType.valueOf(type));
+    return db;
   }
 
   private MTable convertToMTable(Table tbl) throws InvalidObjectException,

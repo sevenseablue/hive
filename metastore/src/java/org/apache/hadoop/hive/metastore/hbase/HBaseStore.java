@@ -251,6 +251,11 @@ public class HBaseStore implements RawStore {
   }
 
   @Override
+  public List<Database> getAllDatabase() {
+    return null;
+  }
+
+  @Override
   public int getDatabaseCount() throws MetaException {
     try {
       return getHBase().getDatabaseCount();
