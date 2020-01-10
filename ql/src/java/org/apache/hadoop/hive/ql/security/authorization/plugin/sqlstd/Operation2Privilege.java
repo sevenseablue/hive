@@ -82,8 +82,8 @@ public class Operation2Privilege {
 
     /**
      * Utility function that takes a input and output privilege objects
-     * @param inGrant
-     * @param outGrant
+     * @param inGrants
+     * @param outGrants
      * @return
      */
     static List<PrivRequirement> newIOPrivRequirement(SQLPrivTypeGrant[] inGrants,

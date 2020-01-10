@@ -19,6 +19,8 @@ datanucleus.log
 .arc
 TempStatsStore/
 target/
+*/target
+*/target/target
 ql/TempStatsStore
 hcatalog/hcatalog-pig-adapter/target
 hcatalog/server-extensions/target
