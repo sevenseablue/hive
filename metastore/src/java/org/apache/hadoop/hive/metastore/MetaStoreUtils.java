@@ -706,7 +706,7 @@ public class MetaStoreUtils {
    * validate column type
    *
    * if it is predefined, yes. otherwise no
-   * @param name
+   * @param type
    * @return
    */
   static public String validateColumnType(String type) {
@@ -1480,6 +1480,25 @@ public class MetaStoreUtils {
     }
 
     return "TRUE".equalsIgnoreCase(params.get("EXTERNAL"));
+  }
+
+  /**
+   * Determines whether an table needs to be purged or not.
+   *
+   * @param table table of interest
+   *
+   * @return true if external table needs to be purged
+   */
+  public static boolean isExternalTablePurge(Table table) {
+    if (table == null) {
+      return false;
+    }
+    Map<String, String> params = table.getParameters();
+    if (params == null) {
+      return false;
+    }
+
+    return "TRUE".equalsIgnoreCase(params.getOrDefault("external.table.purge", "false"));
   }
 
   /**
