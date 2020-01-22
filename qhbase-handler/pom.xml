@@ -95,17 +95,6 @@
           </exclusion>
       </exclusions>
     </dependency>
-    <dependency>
-      <groupId>org.apache.hadoop</groupId>
-      <artifactId>hadoop-mapreduce-client-core</artifactId>
-      <version>${hadoop.version}</version>
-      <optional>true</optional>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.hbase</groupId>
-      <artifactId>hbase-hadoop2-compat</artifactId>
-      <version>${hbase.version}</version>
-    </dependency>
 <!--    <dependency>-->
 <!--      <groupId>org.apache.hbase</groupId>-->
 <!--      <artifactId>hbase-mapreduce</artifactId>-->
