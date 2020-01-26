@@ -50,6 +50,7 @@ import org.apache.hadoop.hive.ql.metadata.HiveStoragePredicateHandler;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
+import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrGreaterThan;
 import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrLessThan;
@@ -64,10 +65,14 @@ import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.hive.shims.ShimLoader;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputFormat;
 import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.KeyValueTextInputFormat;
+import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner;
 import org.apache.hadoop.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,6 +106,28 @@ public class HBaseStorageHandler extends DefaultStorageHandler
   };
 
   final static public String DEFAULT_PREFIX = "default.";
+
+  public HBaseStorageHandler() {
+    LOG.info("######HBaseStorageHandler######new HBaseStorageHandler");
+    SessionState sess = SessionState.get();
+    Configuration sessionConf = sess.getConf();
+    String peKey = "hive.exec.post.hooks";
+    String peVal = sessionConf.get(peKey);
+    peVal = peVal == null? "": peVal;
+
+    if (!peVal.contains(QPostExecuteHbaseHandler.class.getName())) {
+      String peValUp = QPostExecuteHbaseHandler.class.getName() + "," + peVal;
+      sessionConf.set(peKey, peValUp);
+      LOG.info("######HBaseStorageHandler######" + peKey + "\t" + peVal + "\t" + peValUp);
+
+      String localAutoKey = "hive.exec.mode.local.auto";
+      String localAutoVal = sessionConf.get(localAutoKey);
+      sess.getHiveVariables().put("hive.exec.mode.local.auto.prejdbc", localAutoVal);
+      sessionConf.set(localAutoKey, "false");
+      LOG.info("######HBaseStorageHandler######" + localAutoKey + "\t" + localAutoVal);
+    }
+
+  }
 
   //Check if the configure job properties is called from input
   // or output for setting asymmetric properties

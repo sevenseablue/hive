@@ -27,6 +27,7 @@ import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hive.metastore.DefaultHiveMetaHook;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.Table;
@@ -45,7 +46,7 @@ import java.util.Set;
  * MetaHook for HBase. Updates the table data in HBase too. Not thread safe, and cleanup should
  * be used after usage.
  */
-public class HBaseMetaHook implements HiveMetaHook, Closeable {
+public class HBaseMetaHook extends DefaultHiveMetaHook implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(HBaseMetaHook.class);
   private Configuration hbaseConf;
   private Admin admin;
@@ -87,6 +88,8 @@ public class HBaseMetaHook implements HiveMetaHook, Closeable {
     }
     return tableName;
   }
+
+
 
   @Override
   public void preDropTable(Table table) throws MetaException {
@@ -214,5 +217,20 @@ public class HBaseMetaHook implements HiveMetaHook, Closeable {
         connection.close();
       }
     }
+  }
+
+  @Override
+  public void commitInsertTable(Table table, boolean overwrite) throws MetaException {
+
+  }
+
+  @Override
+  public void preInsertTable(Table table, boolean overwrite) throws MetaException {
+
+  }
+
+  @Override
+  public void rollbackInsertTable(Table table, boolean overwrite) throws MetaException {
+
   }
 }
