@@ -29,6 +29,7 @@ import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
+import org.apache.hadoop.hbase.client.metrics.ScanMetrics;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.conf.HiveConf.ConfVars;
 import org.apache.hadoop.hive.metastore.FileFormatProxy;
@@ -157,6 +158,16 @@ public class MockUtils {
           public Iterator<Result> iterator() {
             return iter;
           }
+
+          @Override
+          public boolean renewLease(){
+            return false;
+          };
+
+          @Override
+          public ScanMetrics getScanMetrics(){
+            return null;
+          };
         };
       }
     });
