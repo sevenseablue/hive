@@ -464,6 +464,11 @@ public class SQLAuthorizationUtils {
 
   public static boolean hasWritePrivFromFS(Path filePath, HiveConf conf,
                                            String userName) throws HiveAuthzPluginException {
+
+    if(UserDbLoc.existsUserLocs(userName, filePath.toUri().getPath())){
+      return true;
+    }
+
     FileSystem fs;
     try {
       fs = FileSystem.get(filePath.toUri(), conf);
