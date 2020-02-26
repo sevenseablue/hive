@@ -30,8 +30,10 @@ import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.mapred.TableOutputFormat;
 import org.apache.hadoop.hbase.mapreduce.TableInputFormatBase;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
@@ -242,7 +244,10 @@ public class HBaseStorageHandler extends DefaultStorageHandler
     if (this.configureInputJobProps) {
       LOG.info("Configuring input job properties");
       String snapshotName = HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME);
-      if (snapshotName != null) {
+      if (snapshotName != null && !snapshotName.equals("")) {
+        // TODO
+        HBaseUtils.createSnapshot(snapshotName, tableName, hbaseConf);
+
         HBaseTableSnapshotInputFormatUtil.assertSupportsTableSnapshots();
 
         try {

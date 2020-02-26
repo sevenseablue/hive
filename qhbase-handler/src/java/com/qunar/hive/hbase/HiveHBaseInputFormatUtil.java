@@ -85,6 +85,9 @@ class HiveHBaseInputFormatUtil {
 
     boolean readAllColumns = ColumnProjectionUtils.isReadAllColumns(jobConf);
     Scan scan = new Scan();
+    scan = HiveHBaseTableInputFormat.createFilterScan(jobConf, columnMappings.getKeyIndex(), columnMappings.getTimestampIndex(), HiveHBaseInputFormatUtil.getStorageFormatOfKey(columnMappings.getKeyMapping().mappingSpec,
+            jobConf.get(HBaseSerDe.HBASE_TABLE_DEFAULT_STORAGE_TYPE, "string")));
+
     boolean empty = true;
 
     // The list of families that have been added to the scan

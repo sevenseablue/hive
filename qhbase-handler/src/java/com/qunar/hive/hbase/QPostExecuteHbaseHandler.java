@@ -42,7 +42,7 @@ public class QPostExecuteHbaseHandler implements ExecuteWithHookContext {
     assert (hookContext.getHookType() == HookType.POST_EXEC_HOOK  );
 //    Set<ReadEntity> inputs = hookContext.getInputs();
     Set<WriteEntity> outputs = hookContext.getOutputs();
-    this.run(hookContext, outputs);
+    bulkLoad(hookContext, outputs);
 
     Configuration sessionConf = hookContext.getConf();
     String peKey = "hive.exec.post.hooks";
@@ -56,12 +56,10 @@ public class QPostExecuteHbaseHandler implements ExecuteWithHookContext {
     LOG.info("####QPostExecuteHbaseHandler####" + "\t" + peKey + "\t" + peVal + "\t" + peValUp + "\t" + localAutoVal);
   }
 
-  public void run(HookContext hookContext, Set<WriteEntity> outputs) throws Exception {
-
+  public void bulkLoad(HookContext hookContext, Set<WriteEntity> outputs) throws Exception {
     if (console == null) {
       return;
     }
-
     getHiveMetaInfo(outputs);
     if (hivetablename != null && iswrite && ishivehbasehandler) {
       getClientProperty(hookContext);

@@ -163,7 +163,7 @@ public class HiveHBaseTableInputFormat extends TableInputFormatBase
    *
    * @return converted table split if any
    */
-  private Scan createFilterScan(JobConf jobConf, int iKey, int iTimestamp, boolean isKeyBinary) throws IOException {
+  public static Scan createFilterScan(JobConf jobConf, int iKey, int iTimestamp, boolean isKeyBinary) throws IOException {
 
     // TODO: assert iKey is HBaseSerDe#HBASE_KEY_COL
 
