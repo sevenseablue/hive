@@ -16,7 +16,9 @@ import org.apache.hadoop.hive.ql.session.SessionState;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.SequenceFile;
 
+import javax.annotation.Nullable;
 import java.io.IOException;
+import java.util.Properties;
 
 
 public class HBaseUtils {
@@ -117,21 +119,15 @@ public class HBaseUtils {
     }
   }
 
-  public static void deleteSnapshot(String snapshotName, String name, Configuration conf) {
-    TableName tableName = TableName.valueOf(name);
+  public static void deleteSnapshot(String snapshotName, Configuration conf) {
     Connection conn = null;
     Admin admin = null;
     SessionState.LogHelper console = SessionState.getConsole();
     try {
       conn = ConnectionFactory.createConnection(conf);
       admin = conn.getAdmin();
-      if (admin.tableExists(tableName)) {
-        admin.deleteSnapshot(snapshotName);
-        console.printInfo("snapshot " + snapshotName + " deleted");
-      } else {
-        console.printInfo("hbase table " + name + " not exists!");
-      }
-
+      admin.deleteSnapshot(snapshotName);
+      console.printInfo("snapshot " + snapshotName + " deleted");
     } catch (SnapshotDoesNotExistException e) {
       console.printInfo("snapshot " + snapshotName + " does not exist");
     } catch (IOException e) {
@@ -152,6 +148,84 @@ public class HBaseUtils {
         }
       }
     }
+  }
+
+  public static void checkConfArgument(boolean exp, @Nullable Object errorMessage) {
+    if (exp) {
+      throw new NullPointerException(String.valueOf(errorMessage));
+    }
+  }
+
+  /**
+   * Generate the hfile unique directory from the hbase table
+   *
+   * @param hfileprepath
+   * @param hbaseName
+   * @return
+   */
+  public static String getHfilePath(String hfileprepath, String hbaseName) {
+    hbaseName = hbaseName.contains(":") ? hbaseName.replace(":", "/") : Constant.HBASE_DEFAULT_PRE + hbaseName;
+    String hfilepath = null;
+    if (!hfileprepath.endsWith(Constant.PATH_DELIMITER)) {
+      hfilepath = hfileprepath + Constant.PATH_DELIMITER + hbaseName;
+    } else {
+      hfilepath = hfileprepath + hbaseName;
+    }
+    return hfilepath;
+  }
+
+  public static void setConf(Configuration jc, String name, String value) {
+    jc.set(name, value);
+  }
+
+  /**
+   * Check whether the parameters are configured,Must be configured "hfile.family.name",Otherwise it can't query
+   *
+   * @param jc         job configuration
+   * @param tableProps
+   * @return
+   */
+  public static String getHfileFamilyPath(Configuration jc, Properties tableProps) {
+    String hfileprepath = jc.get(Constant.HFILE_FAMILY_PATH, tableProps.getProperty(Constant.HFILE_FAMILY_PATH));
+    checkConfArgument(
+        hfileprepath == null,
+        "Please set " + Constant.HFILE_FAMILY_PATH + " to target location for HFiles");
+    String hbaseName = tableProps.getProperty(Constant.HBASE_TABLE_NAME);
+    checkConfArgument(
+        hbaseName == null,
+        "Please set " + Constant.HBASE_TABLE_NAME + " to target hbase table");
+    String familyName = tableProps.getProperty(Constant.HBASE_TABLE_FAMILY_NAME);
+    checkConfArgument(
+        familyName == null,
+        "Please set " + Constant.HBASE_TABLE_FAMILY_NAME + " to target hbase table family name");
+
+    String hfilepath = getHfilePath(hfileprepath, hbaseName);
+
+    setConf(jc, Constant.BULKLOAD_HFILE_PATH, hfilepath);
+    return hfilepath + Constant.PATH_DELIMITER + familyName;
+  }
+
+  /**
+   * Set the temporary directory of the hfile intermediate file
+   *
+   * @param jc
+   * @param tableProps
+   * @return
+   */
+  public static String getFinalOutPath(Configuration jc, Properties tableProps) {
+    String hfileprepath = jc.get(Constant.HFILE_FAMILY_PATH, tableProps.getProperty(Constant.HFILE_FAMILY_PATH));
+    checkConfArgument(
+        hfileprepath == null,
+        "Please set " + Constant.HFILE_FAMILY_PATH + " to target location for HFiles");
+    String hbaseName = tableProps.getProperty(Constant.HBASE_TABLE_NAME);
+    checkConfArgument(
+        hbaseName == null,
+        "Please set " + Constant.HBASE_TABLE_NAME + " to target hbase table");
+    String familyName = tableProps.getProperty(Constant.HBASE_TABLE_FAMILY_NAME);
+    checkConfArgument(
+        familyName == null,
+        "Please set " + Constant.HBASE_TABLE_FAMILY_NAME + " to target hbase table family name");
+    return hfileprepath + "/__hfile_out_tmp/"+hbaseName+"_"+familyName;
   }
 
   public static void main(String[] args) throws IOException {

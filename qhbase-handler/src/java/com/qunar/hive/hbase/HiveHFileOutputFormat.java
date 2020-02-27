@@ -85,7 +85,8 @@ public class HiveHFileOutputFormat extends
    * @return the family path or null if not specified.
    */
   public static String getFamilyPath(Configuration jc, Properties tableProps) {
-    return jc.get(HFILE_FAMILY_PATH, tableProps.getProperty(HFILE_FAMILY_PATH));
+//    return jc.get(HFILE_FAMILY_PATH, tableProps.getProperty(HFILE_FAMILY_PATH));
+    return HBaseUtils.getHfileFamilyPath(jc, tableProps);
   }
 
   @Override
@@ -120,7 +121,9 @@ public class HiveHFileOutputFormat extends
     final byte [] columnFamilyNameBytes = Bytes.toBytes(columnFamilyName);
     final Job job = new Job(jc);
     setCompressOutput(job, isCompressed);
-    setOutputPath(job, finalOutPath);
+//    setOutputPath(job, finalOutPath);
+    Path path = new Path(HBaseUtils.getFinalOutPath(jc, tableProperties));
+    setOutputPath(job, path);
 
     // Create the HFile writer
     final org.apache.hadoop.mapreduce.TaskAttemptContext tac =

@@ -18,29 +18,19 @@
 
 package com.qunar.hive.hbase;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.Set;
-
+import com.codahale.metrics.MetricRegistry;
+import com.qunar.hive.hbase.ColumnMappings.ColumnMapping;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.mapred.TableOutputFormat;
 import org.apache.hadoop.hbase.mapreduce.TableInputFormatBase;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.security.token.TokenUtil;
 import org.apache.hadoop.hive.conf.HiveConf;
-import com.qunar.hive.hbase.ColumnMappings.ColumnMapping;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.hive_metastoreConstants;
@@ -53,13 +43,9 @@ import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
 import org.apache.hadoop.hive.ql.plan.TableDesc;
 import org.apache.hadoop.hive.ql.session.SessionState;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrGreaterThan;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrLessThan;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPGreaterThan;
-import org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPLessThan;
-import org.apache.hadoop.hive.serde2.Deserializer;
+import org.apache.hadoop.hive.ql.udf.generic.*;
 import org.apache.hadoop.hive.serde2.AbstractSerDe;
+import org.apache.hadoop.hive.serde2.Deserializer;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector.Category;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveGrouping;
@@ -67,19 +53,18 @@ import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.hive.shims.ShimLoader;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.OutputFormat;
 import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.KeyValueTextInputFormat;
-import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner;
 import org.apache.hadoop.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.MetricRegistry;
+import javax.annotation.Nullable;
+import java.io.IOException;
+import java.util.*;
+import java.util.Map.Entry;
 
 /**
  * HBaseStorageHandler provides a HiveStorageHandler implementation for
@@ -124,7 +109,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
 
       String localAutoKey = "hive.exec.mode.local.auto";
       String localAutoVal = sessionConf.get(localAutoKey);
-      sess.getHiveVariables().put("hive.exec.mode.local.auto.prejdbc", localAutoVal);
+      sess.getHiveVariables().put("hive.exec.mode.local.auto.pre", localAutoVal);
       sessionConf.set(localAutoKey, "false");
       LOG.info("######HBaseStorageHandler######" + localAutoKey + "\t" + localAutoVal);
     }
@@ -239,13 +224,22 @@ public class HBaseStorageHandler extends DefaultStorageHandler
     Configuration jobConf = getJobConf();
     addHBaseResources(jobConf, jobProperties);
 
+    SessionState sess = SessionState.get();
+    Configuration sessionConf = sess.getConf();
+    Map<String, String> variables = sess.getHiveVariables();
+    String hbaseHandlerType = "hive.hbase.handler.rwType";
+
     // do this for reconciling HBaseStorageHandler for use in HCatalog
     // check to see if this an input job or an outputjob
     if (this.configureInputJobProps) {
       LOG.info("Configuring input job properties");
-      String snapshotName = HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME);
-      if (snapshotName != null && !snapshotName.equals("")) {
-        // TODO
+      variables.put(hbaseHandlerType, "read");
+//      String snapshotName = HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME);
+      long currentTimeMillis = System.currentTimeMillis();
+      String snapshotName = "hfile_snap_"+tableName.replace(":","_")+ "_" +currentTimeMillis;
+      sessionConf.set(HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME.name(), snapshotName);
+
+      if (snapshotName != null) {
         HBaseUtils.createSnapshot(snapshotName, tableName, hbaseConf);
 
         HBaseTableSnapshotInputFormatUtil.assertSupportsTableSnapshots();
@@ -294,6 +288,8 @@ public class HBaseStorageHandler extends DefaultStorageHandler
     }
     else {
       LOG.info("Configuring output job properties");
+      variables.put(hbaseHandlerType, "write");
+      sessionConf.set(HiveConf.ConfVars.HIVE_HBASE_GENERATE_HFILES.name(), "true");
       if (isHBaseGenerateHFiles(jobConf)) {
         // only support bulkload when a hfile.family.path has been specified.
         // TODO: support detecting cf's from column mapping
@@ -309,6 +305,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
       }
     } // output job properties
   }
+
 
   /**
    * Return true when HBaseStorageHandler should generate hfiles instead of operate against the

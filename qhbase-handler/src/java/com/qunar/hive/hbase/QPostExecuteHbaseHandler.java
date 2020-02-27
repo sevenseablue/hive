@@ -1,9 +1,13 @@
 package com.qunar.hive.hbase;
 
 
+import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.Properties;
 
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.hooks.*;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.hadoop.conf.Configuration;
@@ -39,7 +43,19 @@ public class QPostExecuteHbaseHandler implements ExecuteWithHookContext {
 
   @Override
   public void run(HookContext hookContext) throws Exception {
-    assert (hookContext.getHookType() == HookType.POST_EXEC_HOOK  );
+    assert (hookContext.getHookType() == HookType.POST_EXEC_HOOK);
+
+    // delete snapshot
+    SessionState sess = SessionState.get();
+    Map<String, String> variables = sess.getHiveVariables();
+    String hbaseHandlerType = "hive.hbase.handler.rwType";
+    LOG.info(hbaseHandlerType+"\tvalue="+variables.getOrDefault(hbaseHandlerType, ""));
+    if(variables.getOrDefault(hbaseHandlerType, "").equals("read")){
+      HBaseUtils.deleteSnapshot(sess.getConf().get(HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME.name()), HBaseConfiguration.create(sess.getConf()));
+      LOG.info("delete snapshot success");
+      return;
+    }
+
 //    Set<ReadEntity> inputs = hookContext.getInputs();
     Set<WriteEntity> outputs = hookContext.getOutputs();
     bulkLoad(hookContext, outputs);
@@ -51,7 +67,7 @@ public class QPostExecuteHbaseHandler implements ExecuteWithHookContext {
     sessionConf.set(peKey, peValUp);
 
     String localAutoKey = "hive.exec.mode.local.auto";
-    String localAutoVal = SessionState.get().getHiveVariables().get("hive.exec.mode.local.auto.prejdbc");
+    String localAutoVal = SessionState.get().getHiveVariables().get("hive.exec.mode.local.auto.pre");
     sessionConf.set(localAutoKey, localAutoVal);
     LOG.info("####QPostExecuteHbaseHandler####" + "\t" + peKey + "\t" + peVal + "\t" + peValUp + "\t" + localAutoVal);
   }
@@ -73,7 +89,7 @@ public class QPostExecuteHbaseHandler implements ExecuteWithHookContext {
 
 
   /**
-   * Get hive and hbae table info from meta
+   * Get hive and hbase table info from meta
    *
    * @param outputs This object may be a table, partition, dfs directory or a local directory.
    */
@@ -117,10 +133,28 @@ public class QPostExecuteHbaseHandler implements ExecuteWithHookContext {
     String[] args = new String[2];
     args[0] = bulkloadHfilePath;
     args[1] = hbasetablename;
+    Path path = new Path(bulkloadHfilePath);
+    FileSystem fs = null;
     try {
-      ToolRunner.run(new LoadIncrementalHFiles(hconf), args);
+      fs = path.getFileSystem(hconf);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    int ret = 0;
+    try {
+      ret = ToolRunner.run(new LoadIncrementalHFiles(hconf), args);
     } catch (Exception e) {
       e.printStackTrace();
+    } finally {
+      if (ret == 0) {
+        try {
+          fs.delete(path, true);
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+      } else {
+        LOG.error("bulk load to " + hbasetablename + " faild");
+      }
     }
   }
 
