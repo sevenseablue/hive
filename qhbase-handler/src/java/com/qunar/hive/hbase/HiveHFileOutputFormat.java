@@ -18,6 +18,7 @@
 
 package com.qunar.hive.hbase;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.util.Collections;
@@ -167,7 +168,14 @@ public class HiveHFileOutputFormat extends
           fs.mkdirs(columnFamilyPath);
           Path srcDir = taskAttemptOutputdir;
           for (;;) {
-            FileStatus [] files = fs.listStatus(srcDir, FileUtils.STAGING_DIR_PATH_FILTER);
+            FileStatus [] files = null;
+            try {
+              files = fs.listStatus(srcDir, FileUtils.STAGING_DIR_PATH_FILTER);
+            }catch(FileNotFoundException e){
+              e.printStackTrace();
+              LOG.info("may be total order partitioner, no file in this seg.");
+              return;
+            }
             if ((files == null) || (files.length == 0)) {
               throw new IOException("No family directories found in " + srcDir);
             }

@@ -98,6 +98,8 @@ public class HBaseStorageHandler extends DefaultStorageHandler
     LOG.info("######HBaseStorageHandler######new HBaseStorageHandler");
     SessionState sess = SessionState.get();
     Configuration sessionConf = sess.getConf();
+    sessionConf.set(HiveConf.ConfVars.HIVE_HBASE_GENERATE_HFILES.name(), "true");
+
     String peKey = "hive.exec.post.hooks";
     String peVal = sessionConf.get(peKey);
     peVal = peVal == null? "": peVal;
@@ -135,6 +137,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
   @Override
   public void setConf(Configuration conf) {
     jobConf = conf;
+    HiveConf.setBoolVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_GENERATE_HFILES, true);
     hbaseConf = HBaseConfiguration.create(conf);
   }
 
@@ -289,7 +292,6 @@ public class HBaseStorageHandler extends DefaultStorageHandler
     else {
       LOG.info("Configuring output job properties");
       variables.put(hbaseHandlerType, "write");
-      sessionConf.set(HiveConf.ConfVars.HIVE_HBASE_GENERATE_HFILES.name(), "true");
       if (isHBaseGenerateHFiles(jobConf)) {
         // only support bulkload when a hfile.family.path has been specified.
         // TODO: support detecting cf's from column mapping
@@ -312,6 +314,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
    * online table. This mode is implicitly applied when "hive.hbase.generatehfiles" is true.
    */
   public static boolean isHBaseGenerateHFiles(Configuration conf) {
+    HiveConf.setBoolVar(conf, HiveConf.ConfVars.HIVE_HBASE_GENERATE_HFILES, true);
     return HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_HBASE_GENERATE_HFILES);
   }
 

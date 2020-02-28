@@ -225,7 +225,7 @@ public class HBaseUtils {
     checkConfArgument(
         familyName == null,
         "Please set " + Constant.HBASE_TABLE_FAMILY_NAME + " to target hbase table family name");
-    return hfileprepath + "/__hfile_out_tmp/"+hbaseName+"_"+familyName;
+    return getHfilePath(hfileprepath + "/__hfile_out_tmp/", hbaseName+"_"+familyName);
   }
 
   public static void main(String[] args) throws IOException {
