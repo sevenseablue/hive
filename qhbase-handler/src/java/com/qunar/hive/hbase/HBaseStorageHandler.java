@@ -21,6 +21,7 @@ package com.qunar.hive.hbase;
 import com.codahale.metrics.MetricRegistry;
 import com.qunar.hive.hbase.ColumnMappings.ColumnMapping;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.client.Connection;
@@ -38,6 +39,7 @@ import org.apache.hadoop.hive.ql.exec.FunctionRegistry;
 import org.apache.hadoop.hive.ql.index.IndexPredicateAnalyzer;
 import org.apache.hadoop.hive.ql.index.IndexSearchCondition;
 import org.apache.hadoop.hive.ql.metadata.DefaultStorageHandler;
+import org.apache.hadoop.hive.ql.metadata.Hive;
 import org.apache.hadoop.hive.ql.metadata.HiveStoragePredicateHandler;
 import org.apache.hadoop.hive.ql.plan.ExprNodeDesc;
 import org.apache.hadoop.hive.ql.plan.ExprNodeGenericFuncDesc;
@@ -98,22 +100,20 @@ public class HBaseStorageHandler extends DefaultStorageHandler
     LOG.info("######HBaseStorageHandler######new HBaseStorageHandler");
     SessionState sess = SessionState.get();
     Configuration sessionConf = sess.getConf();
-    sessionConf.set(HiveConf.ConfVars.HIVE_HBASE_GENERATE_HFILES.name(), "true");
+    HiveConf.setBoolVar(sessionConf, HiveConf.ConfVars.HIVE_HBASE_GENERATE_HFILES, true);
 
-    String peKey = "hive.exec.post.hooks";
-    String peVal = sessionConf.get(peKey);
+    String peVal = HiveConf.getVar(sessionConf, HiveConf.ConfVars.POSTEXECHOOKS);
     peVal = peVal == null? "": peVal;
 
     if (!peVal.contains(QPostExecuteHbaseHandler.class.getName())) {
       String peValUp = QPostExecuteHbaseHandler.class.getName() + "," + peVal;
-      sessionConf.set(peKey, peValUp);
-      LOG.info("######HBaseStorageHandler######" + peKey + "\t" + peVal + "\t" + peValUp);
+      HiveConf.setVar(sessionConf, HiveConf.ConfVars.POSTEXECHOOKS, peValUp);
+      LOG.info("######HBaseStorageHandler######" + HiveConf.ConfVars.POSTEXECHOOKS.varname + "\t" + peVal + "\t" + peValUp);
 
-      String localAutoKey = "hive.exec.mode.local.auto";
-      String localAutoVal = sessionConf.get(localAutoKey);
+      String localAutoVal = HiveConf.getVar(sessionConf, HiveConf.ConfVars.LOCALMODEAUTO);
       sess.getHiveVariables().put("hive.exec.mode.local.auto.pre", localAutoVal);
-      sessionConf.set(localAutoKey, "false");
-      LOG.info("######HBaseStorageHandler######" + localAutoKey + "\t" + localAutoVal);
+      HiveConf.setVar(sessionConf, HiveConf.ConfVars.LOCALMODEAUTO, "false");
+      LOG.info("######HBaseStorageHandler######" + HiveConf.ConfVars.LOCALMODEAUTO.varname + "\t" + localAutoVal);
     }
 
   }
@@ -138,6 +138,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
   public void setConf(Configuration conf) {
     jobConf = conf;
     HiveConf.setBoolVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_GENERATE_HFILES, true);
+    HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME, "initVal");
     hbaseConf = HBaseConfiguration.create(conf);
   }
 
@@ -228,7 +229,6 @@ public class HBaseStorageHandler extends DefaultStorageHandler
     addHBaseResources(jobConf, jobProperties);
 
     SessionState sess = SessionState.get();
-    Configuration sessionConf = sess.getConf();
     Map<String, String> variables = sess.getHiveVariables();
     String hbaseHandlerType = "hive.hbase.handler.rwType";
 
@@ -240,16 +240,14 @@ public class HBaseStorageHandler extends DefaultStorageHandler
 //      String snapshotName = HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME);
       long currentTimeMillis = System.currentTimeMillis();
       String snapshotName = "hfile_snap_"+tableName.replace(":","_")+ "_" +currentTimeMillis;
-      sessionConf.set(HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME.name(), snapshotName);
+      HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME, snapshotName);
 
       if (snapshotName != null) {
         HBaseUtils.createSnapshot(snapshotName, tableName, hbaseConf);
-
         HBaseTableSnapshotInputFormatUtil.assertSupportsTableSnapshots();
 
         try {
-          String restoreDir =
-            HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_RESTORE_DIR);
+          String restoreDir = HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_RESTORE_DIR);
           if (restoreDir == null) {
             throw new IllegalArgumentException(
               "Cannot process HBase snapshot without specifying " + HiveConf.ConfVars
@@ -302,6 +300,24 @@ public class HBaseStorageHandler extends DefaultStorageHandler
         }
         // TODO: should call HiveHFileOutputFormat#setOutputPath
         jobProperties.put("mapred.output.dir", path);
+
+        try{
+          Path hdfsPath= new Path(path);
+          FileSystem fs = hdfsPath.getFileSystem(jobConf);
+          if (fs.exists(hdfsPath)) {
+            fs.delete(hdfsPath, false);
+          }
+
+          int numReduce = HBaseUtils.getRegionNum(jobConf, tableName);
+          HiveConf.setIntVar(jobConf, HiveConf.ConfVars.HADOOPNUMREDUCERS, numReduce);
+          HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVEPARTITIONER, org.apache.hadoop.mapred.lib.TotalOrderPartitioner.class.getName());
+          String partitionFile = HBaseUtils.getPartitionFilePath(jobConf, tableProperties);
+          HBaseUtils.writePartitionFile(jobConf, partitionFile, tableName);
+          jobConf.set("mapreduce.totalorderpartitioner.path", partitionFile);
+        } catch (IOException e) {
+          e.printStackTrace();
+          throw new RuntimeException("get hbase table start keys fail exception.");
+        }
       } else {
         jobProperties.put(TableOutputFormat.OUTPUT_TABLE, tableName);
       }

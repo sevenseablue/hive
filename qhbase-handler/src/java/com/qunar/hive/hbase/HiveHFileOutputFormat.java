@@ -86,7 +86,6 @@ public class HiveHFileOutputFormat extends
    * @return the family path or null if not specified.
    */
   public static String getFamilyPath(Configuration jc, Properties tableProps) {
-//    return jc.get(HFILE_FAMILY_PATH, tableProps.getProperty(HFILE_FAMILY_PATH));
     return HBaseUtils.getHfileFamilyPath(jc, tableProps);
   }
 

@@ -37,17 +37,36 @@ public class HBaseUtils {
   }
 
   public static byte[][] getTabKeys(String tabName) throws IOException {
-    Configuration config = HBaseUtils.getConf();
+    return getTabKeys(getConf(), tabName);
+  }
+
+  public static byte[][] getTabKeys(Configuration conf, String tabName) throws IOException {
+    Configuration config = HBaseConfiguration.create(conf);
     HTable hTable = new HTable(config, tabName);
     byte[][] startKeys = hTable.getRegionLocator().getStartKeys();
     hTable.close();
     return startKeys;
   }
 
+  public static int getRegionNum(Configuration conf, String tabName) throws IOException {
+    return getTabKeys(conf, tabName).length;
+  }
+
+  public static void delIfExistHfile(Configuration conf, String file) throws IOException {
+    String hfilePath = conf.get(Constant.HFILE_FAMILY_PATH);
+    if (hfilePath!=null && hfilePath.length()>5 && file.contains(hfilePath)){
+      Path dst = new Path(file);
+      FileSystem fs = dst.getFileSystem(conf);
+      if (fs.exists(dst)) {
+        fs.delete(dst, false);
+      }
+    }
+  }
+
   public static void writePartitionFile(Configuration conf, String partitionFile, String tabName)
       throws IOException {
 
-    byte[][] keys = getTabKeys(tabName);
+    byte[][] keys = getTabKeys(conf, tabName);
     Path dst = new Path(partitionFile);
     FileSystem fs = dst.getFileSystem(conf);
     if (fs.exists(dst)) {
@@ -199,10 +218,10 @@ public class HBaseUtils {
         familyName == null,
         "Please set " + Constant.HBASE_TABLE_FAMILY_NAME + " to target hbase table family name");
 
-    String hfilepath = getHfilePath(hfileprepath, hbaseName);
+    String hfilePath = getHfilePath(hfileprepath, hbaseName);
+    setConf(jc, Constant.BULKLOAD_HFILE_PATH, hfilePath);
 
-    setConf(jc, Constant.BULKLOAD_HFILE_PATH, hfilepath);
-    return hfilepath + Constant.PATH_DELIMITER + familyName;
+    return hfilePath + Constant.PATH_DELIMITER + familyName;
   }
 
   /**
@@ -213,22 +232,22 @@ public class HBaseUtils {
    * @return
    */
   public static String getFinalOutPath(Configuration jc, Properties tableProps) {
-    String hfileprepath = jc.get(Constant.HFILE_FAMILY_PATH, tableProps.getProperty(Constant.HFILE_FAMILY_PATH));
-    checkConfArgument(
-        hfileprepath == null,
-        "Please set " + Constant.HFILE_FAMILY_PATH + " to target location for HFiles");
+    String hfilePrePath = jc.get(Constant.HFILE_FAMILY_PATH, tableProps.getProperty(Constant.HFILE_FAMILY_PATH));
     String hbaseName = tableProps.getProperty(Constant.HBASE_TABLE_NAME);
-    checkConfArgument(
-        hbaseName == null,
-        "Please set " + Constant.HBASE_TABLE_NAME + " to target hbase table");
     String familyName = tableProps.getProperty(Constant.HBASE_TABLE_FAMILY_NAME);
-    checkConfArgument(
-        familyName == null,
-        "Please set " + Constant.HBASE_TABLE_FAMILY_NAME + " to target hbase table family name");
-    return getHfilePath(hfileprepath + "/__hfile_out_tmp/", hbaseName+"_"+familyName);
+    return getHfilePath(hfilePrePath + "/__hfile_out_tmp/", hbaseName+"_"+familyName);
+  }
+
+  public static String getPartitionFilePath(Configuration jc, Properties tableProps) {
+    String hfilePrePath = jc.get(Constant.HFILE_FAMILY_PATH, tableProps.getProperty(Constant.HFILE_FAMILY_PATH));
+    String hbaseName = tableProps.getProperty(Constant.HBASE_TABLE_NAME);
+    String familyName = tableProps.getProperty(Constant.HBASE_TABLE_FAMILY_NAME);
+    return getHfilePath(hfilePrePath + "/__partition_file_path__/", hbaseName+"_"+familyName+"/000000_0");
   }
 
   public static void main(String[] args) throws IOException {
-    HBaseUtils.writePartitionFile(HBaseUtils.getConf(), "/user/corphive/hive/tmp/part/t1.part.2", "datadev:t2");
+    String partsFile = args[1];
+    String tableName = args[0];
+    HBaseUtils.writePartitionFile(HBaseUtils.getConf(), partsFile, tableName);
   }
 }

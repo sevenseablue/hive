@@ -48,28 +48,30 @@ public class QPostExecuteHbaseHandler implements ExecuteWithHookContext {
     // delete snapshot
     SessionState sess = SessionState.get();
     Map<String, String> variables = sess.getHiveVariables();
+    HiveConf sessionConf = sess.getConf();
+
     String hbaseHandlerType = "hive.hbase.handler.rwType";
     LOG.info(hbaseHandlerType+"\tvalue="+variables.getOrDefault(hbaseHandlerType, ""));
+
     if(variables.getOrDefault(hbaseHandlerType, "").equals("read")){
-      HBaseUtils.deleteSnapshot(sess.getConf().get(HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME.name()), HBaseConfiguration.create(sess.getConf()));
+      HBaseUtils.deleteSnapshot(sessionConf.getVar(HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME), HBaseConfiguration.create(sessionConf));
       LOG.info("delete snapshot success");
       return;
     }
+
+    sessionConf.setIntVar(HiveConf.ConfVars.HADOOPNUMREDUCERS, -1);
+    sessionConf.setVar(HiveConf.ConfVars.HIVEPARTITIONER, org.apache.hadoop.hive.ql.io.DefaultHivePartitioner.class.getName());
 
 //    Set<ReadEntity> inputs = hookContext.getInputs();
     Set<WriteEntity> outputs = hookContext.getOutputs();
     bulkLoad(hookContext, outputs);
 
-    Configuration sessionConf = hookContext.getConf();
-    String peKey = "hive.exec.post.hooks";
-    String peVal = sessionConf.get(peKey);
+    String peVal = sessionConf.getVar(HiveConf.ConfVars.POSTEXECHOOKS);
     String peValUp = peVal.replaceAll(QPostExecuteHbaseHandler.class.getName() + ",", "");
-    sessionConf.set(peKey, peValUp);
+    sessionConf.setVar(HiveConf.ConfVars.POSTEXECHOOKS, peValUp);
 
-    String localAutoKey = "hive.exec.mode.local.auto";
-    String localAutoVal = SessionState.get().getHiveVariables().get("hive.exec.mode.local.auto.pre");
-    sessionConf.set(localAutoKey, localAutoVal);
-    LOG.info("####QPostExecuteHbaseHandler####" + "\t" + peKey + "\t" + peVal + "\t" + peValUp + "\t" + localAutoVal);
+    String localAutoVal = variables.get("hive.exec.mode.local.auto.pre");
+    sessionConf.setVar(HiveConf.ConfVars.LOCALMODEAUTO, localAutoVal);
   }
 
   public void bulkLoad(HookContext hookContext, Set<WriteEntity> outputs) throws Exception {
