@@ -70,6 +70,8 @@ public class QPreExecuteHbaseHandler implements ExecuteWithHookContext {
           HBaseUtils.writePartitionFile(sessionConf, partFile, hbasetablename);
         } catch (IOException e) {
           e.printStackTrace();
+        } catch (Throwable throwable) {
+          throwable.printStackTrace();
         }
       }
 //      sessionConf.set("mapreduce.totalorderpartitioner.path", partFile);
