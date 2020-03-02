@@ -28,10 +28,9 @@ import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hive.metastore.DefaultHiveMetaHook;
-import org.apache.hadoop.hive.metastore.HiveMetaHook;
+import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.Table;
-import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.hadoop.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +40,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
 
 /**
  * MetaHook for HBase. Updates the table data in HBase too. Not thread safe, and cleanup should
@@ -226,7 +226,6 @@ public class HBaseMetaHook extends DefaultHiveMetaHook implements Closeable {
 
   @Override
   public void preInsertTable(Table table, boolean overwrite) throws MetaException {
-
   }
 
   @Override

@@ -73,17 +73,23 @@ import java.util.Map.Entry;
  * HBase.
  */
 public class HBaseStorageHandler extends DefaultStorageHandler
-  implements HiveStoragePredicateHandler {
+    implements HiveStoragePredicateHandler {
 
   private static final Logger LOG = LoggerFactory.getLogger(HBaseStorageHandler.class);
 
-  /** HBase-internal config by which input format receives snapshot name. */
+  /**
+   * HBase-internal config by which input format receives snapshot name.
+   */
   private static final String HBASE_SNAPSHOT_NAME_KEY = "hbase.TableSnapshotInputFormat.snapshot.name";
-  /** HBase-internal config by which input format received restore dir before HBASE-11335. */
+  /**
+   * HBase-internal config by which input format received restore dir before HBASE-11335.
+   */
   private static final String HBASE_SNAPSHOT_TABLE_DIR_KEY = "hbase.TableSnapshotInputFormat.table.dir";
-  /** HBase-internal config by which input format received restore dir after HBASE-11335. */
+  /**
+   * HBase-internal config by which input format received restore dir after HBASE-11335.
+   */
   private static final String HBASE_SNAPSHOT_RESTORE_DIR_KEY = "hbase.TableSnapshotInputFormat.restore.dir";
-  private static final String[] HBASE_CACHE_KEYS = new String[] {
+  private static final String[] HBASE_CACHE_KEYS = new String[]{
       /** HBase config by which a SlabCache is sized. From HBase [0.98.3, 1.0.0) */
       "hbase.offheapcache.percentage",
       /** HBase config by which a BucketCache is sized. */
@@ -99,20 +105,19 @@ public class HBaseStorageHandler extends DefaultStorageHandler
   public HBaseStorageHandler() {
     LOG.info("######HBaseStorageHandler######new HBaseStorageHandler");
     SessionState sess = SessionState.get();
-    Configuration sessionConf = sess.getConf();
-    HiveConf.setBoolVar(sessionConf, HiveConf.ConfVars.HIVE_HBASE_GENERATE_HFILES, true);
-
-    String peVal = HiveConf.getVar(sessionConf, HiveConf.ConfVars.POSTEXECHOOKS);
-    peVal = peVal == null? "": peVal;
+//    Configuration sessionConf = sess.getConf();
+    HiveConf sessionConf = sess.getConf();
+    String peVal = sessionConf.getVar(HiveConf.ConfVars.POSTEXECHOOKS);
+    peVal = peVal == null ? "" : peVal;
 
     if (!peVal.contains(QPostExecuteHbaseHandler.class.getName())) {
       String peValUp = QPostExecuteHbaseHandler.class.getName() + "," + peVal;
-      HiveConf.setVar(sessionConf, HiveConf.ConfVars.POSTEXECHOOKS, peValUp);
+      sessionConf.setVar(HiveConf.ConfVars.POSTEXECHOOKS, peValUp);
       LOG.info("######HBaseStorageHandler######" + HiveConf.ConfVars.POSTEXECHOOKS.varname + "\t" + peVal + "\t" + peValUp);
 
-      String localAutoVal = HiveConf.getVar(sessionConf, HiveConf.ConfVars.LOCALMODEAUTO);
+      String localAutoVal = sessionConf.getVar(HiveConf.ConfVars.LOCALMODEAUTO);
       sess.getHiveVariables().put("hive.exec.mode.local.auto.pre", localAutoVal);
-      HiveConf.setVar(sessionConf, HiveConf.ConfVars.LOCALMODEAUTO, "false");
+      sessionConf.setBoolVar(HiveConf.ConfVars.LOCALMODEAUTO, false);
       LOG.info("######HBaseStorageHandler######" + HiveConf.ConfVars.LOCALMODEAUTO.varname + "\t" + localAutoVal);
     }
 
@@ -138,7 +143,9 @@ public class HBaseStorageHandler extends DefaultStorageHandler
   public void setConf(Configuration conf) {
     jobConf = conf;
     HiveConf.setBoolVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_GENERATE_HFILES, true);
-    HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME, "initVal");
+    if (HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME) == null) {
+      HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME, "");
+    }
     hbaseConf = HBaseConfiguration.create(conf);
   }
 
@@ -172,8 +179,8 @@ public class HBaseStorageHandler extends DefaultStorageHandler
 
   @Override
   public void configureInputJobProperties(
-    TableDesc tableDesc,
-    Map<String, String> jobProperties) {
+      TableDesc tableDesc,
+      Map<String, String> jobProperties) {
     //Input
     this.configureInputJobProps = true;
     configureTableJobProperties(tableDesc, jobProperties);
@@ -181,8 +188,8 @@ public class HBaseStorageHandler extends DefaultStorageHandler
 
   @Override
   public void configureOutputJobProperties(
-    TableDesc tableDesc,
-    Map<String, String> jobProperties) {
+      TableDesc tableDesc,
+      Map<String, String> jobProperties) {
     //Output
     this.configureInputJobProps = false;
     configureTableJobProperties(tableDesc, jobProperties);
@@ -190,20 +197,20 @@ public class HBaseStorageHandler extends DefaultStorageHandler
 
   @Override
   public void configureTableJobProperties(
-    TableDesc tableDesc,
-    Map<String, String> jobProperties) {
+      TableDesc tableDesc,
+      Map<String, String> jobProperties) {
 
     Properties tableProperties = tableDesc.getProperties();
 
     jobProperties.put(
-      HBaseSerDe.HBASE_COLUMNS_MAPPING,
-      tableProperties.getProperty(HBaseSerDe.HBASE_COLUMNS_MAPPING));
+        HBaseSerDe.HBASE_COLUMNS_MAPPING,
+        tableProperties.getProperty(HBaseSerDe.HBASE_COLUMNS_MAPPING));
     jobProperties.put(HBaseSerDe.HBASE_COLUMNS_REGEX_MATCHING,
-            tableProperties.getProperty(HBaseSerDe.HBASE_COLUMNS_REGEX_MATCHING, "true"));
+        tableProperties.getProperty(HBaseSerDe.HBASE_COLUMNS_REGEX_MATCHING, "true"));
     jobProperties.put(HBaseSerDe.HBASE_COLUMNS_PREFIX_HIDE,
-            tableProperties.getProperty(HBaseSerDe.HBASE_COLUMNS_PREFIX_HIDE, "false"));
+        tableProperties.getProperty(HBaseSerDe.HBASE_COLUMNS_PREFIX_HIDE, "false"));
     jobProperties.put(HBaseSerDe.HBASE_TABLE_DEFAULT_STORAGE_TYPE,
-      tableProperties.getProperty(HBaseSerDe.HBASE_TABLE_DEFAULT_STORAGE_TYPE,"string"));
+        tableProperties.getProperty(HBaseSerDe.HBASE_TABLE_DEFAULT_STORAGE_TYPE, "string"));
     jobProperties.put(HBaseSerDe.HBASE_SCAN_CACHEBLOCKS, tableProperties
         .getProperty(HBaseSerDe.HBASE_SCAN_CACHEBLOCKS, "false"));
     String scanCache = tableProperties.getProperty(HBaseSerDe.HBASE_SCAN_CACHE);
@@ -237,12 +244,11 @@ public class HBaseStorageHandler extends DefaultStorageHandler
     if (this.configureInputJobProps) {
       LOG.info("Configuring input job properties");
       variables.put(hbaseHandlerType, "read");
-//      String snapshotName = HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME);
-      long currentTimeMillis = System.currentTimeMillis();
-      String snapshotName = "hfile_snap_"+tableName.replace(":","_")+ "_" +currentTimeMillis;
-      HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME, snapshotName);
-
-      if (snapshotName != null) {
+      String snapshotName = HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME);
+      if (snapshotName != null && !snapshotName.equals("")) {
+        long currentTimeMillis = System.currentTimeMillis();
+        snapshotName = "hfile_snap_" + tableName.replace(":", "_") + "_" + currentTimeMillis;
+        HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME, snapshotName);
         HBaseUtils.createSnapshot(snapshotName, tableName, hbaseConf);
         HBaseTableSnapshotInputFormatUtil.assertSupportsTableSnapshots();
 
@@ -250,8 +256,8 @@ public class HBaseStorageHandler extends DefaultStorageHandler
           String restoreDir = HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_RESTORE_DIR);
           if (restoreDir == null) {
             throw new IllegalArgumentException(
-              "Cannot process HBase snapshot without specifying " + HiveConf.ConfVars
-                .HIVE_HBASE_SNAPSHOT_RESTORE_DIR);
+                "Cannot process HBase snapshot without specifying " + HiveConf.ConfVars
+                    .HIVE_HBASE_SNAPSHOT_RESTORE_DIR);
           }
 
           HBaseTableSnapshotInputFormatUtil.configureJob(hbaseConf, snapshotName, new Path(restoreDir));
@@ -286,8 +292,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
       } catch (IOException | MetaException e) {
         throw new IllegalStateException("Error while configuring input job properties", e);
       } //input job properties
-    }
-    else {
+    } else {
       LOG.info("Configuring output job properties");
       variables.put(hbaseHandlerType, "write");
       if (isHBaseGenerateHFiles(jobConf)) {
@@ -301,22 +306,39 @@ public class HBaseStorageHandler extends DefaultStorageHandler
         // TODO: should call HiveHFileOutputFormat#setOutputPath
         jobProperties.put("mapred.output.dir", path);
 
-        try{
-          Path hdfsPath= new Path(path);
+        try {
+          Path hdfsPath = new Path(path);
           FileSystem fs = hdfsPath.getFileSystem(jobConf);
           if (fs.exists(hdfsPath)) {
-            fs.delete(hdfsPath, false);
+            LOG.info("" + hdfsPath + " exists, delete");
+            fs.delete(hdfsPath, true);
           }
 
+          String topc = HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVEPARTITIONER);
+          HiveConf sessionConf = sess.getConf();
+          if (!topc.contains("TotalOrderPartitioner")) {
+//            HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVEPARTITIONER, org.apache.hadoop.mapred.lib.TotalOrderPartitioner.class.getName());
+            HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVEPARTITIONER, HBaseTotalOrderPartitioner.class.getName());
+          }
+
+          String partitionFile = sessionConf.get("mapreduce.totalorderpartitioner.path", "");
+          LOG.info("sessionConf partitionFile=" + partitionFile + ". written");
+          if (partitionFile.equals("")) {
+            partitionFile = HBaseUtils.getPartitionFilePath(jobConf, tableProperties);
+            LOG.info("HBaseUtils partitionFile=" + partitionFile + ". writing...");
+            HBaseUtils.writePartitionFile(jobConf, partitionFile, tableName);
+            jobConf.set("mapreduce.totalorderpartitioner.path", partitionFile);
+          }
+
+          LOG.info("HBaseUtils.getRegionNum...");
           int numReduce = HBaseUtils.getRegionNum(jobConf, tableName);
           HiveConf.setIntVar(jobConf, HiveConf.ConfVars.HADOOPNUMREDUCERS, numReduce);
-          HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVEPARTITIONER, org.apache.hadoop.mapred.lib.TotalOrderPartitioner.class.getName());
-          String partitionFile = HBaseUtils.getPartitionFilePath(jobConf, tableProperties);
-          HBaseUtils.writePartitionFile(jobConf, partitionFile, tableName);
-          jobConf.set("mapreduce.totalorderpartitioner.path", partitionFile);
         } catch (IOException e) {
           e.printStackTrace();
           throw new RuntimeException("get hbase table start keys fail exception.");
+        } catch (Throwable throwable) {
+          throwable.printStackTrace();
+          throw new RuntimeException("hbase write partition file fail");
         }
       } else {
         jobProperties.put(TableOutputFormat.OUTPUT_TABLE, tableName);
@@ -330,18 +352,18 @@ public class HBaseStorageHandler extends DefaultStorageHandler
    * online table. This mode is implicitly applied when "hive.hbase.generatehfiles" is true.
    */
   public static boolean isHBaseGenerateHFiles(Configuration conf) {
-    HiveConf.setBoolVar(conf, HiveConf.ConfVars.HIVE_HBASE_GENERATE_HFILES, true);
     return HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_HBASE_GENERATE_HFILES);
   }
 
   /**
    * Utility method to add hbase-default.xml and hbase-site.xml properties to a new map
    * if they are not already present in the jobConf.
-   * @param jobConf Job configuration
-   * @param newJobProperties  Map to which new properties should be added
+   *
+   * @param jobConf          Job configuration
+   * @param newJobProperties Map to which new properties should be added
    */
   private void addHBaseResources(Configuration jobConf,
-      Map<String, String> newJobProperties) {
+                                 Map<String, String> newJobProperties) {
     Configuration conf = new Configuration(false);
     HBaseConfiguration.addHbaseResources(conf);
     for (Entry<String, String> entry : conf) {
@@ -369,6 +391,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
   }
 
   private static Class counterClass = null;
+
   static {
     try {
       counterClass = Class.forName("org.cliffc.high_scale_lib.Counter");
@@ -376,6 +399,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
       // this dependency is removed for HBase 1.0
     }
   }
+
   @Override
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
     try {
@@ -388,10 +412,10 @@ public class HBaseStorageHandler extends DefaultStorageHandler
        */
       if (counterClass != null) {
         TableMapReduceUtil.addDependencyJars(
-          jobConf, HBaseStorageHandler.class, TableInputFormatBase.class, counterClass);
+            jobConf, HBaseStorageHandler.class, TableInputFormatBase.class, counterClass);
       } else {
         TableMapReduceUtil.addDependencyJars(
-          jobConf, HBaseStorageHandler.class, TableInputFormatBase.class);
+            jobConf, HBaseStorageHandler.class, TableInputFormatBase.class);
       }
       if (HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME) != null) {
         // There is an extra dependency on MetricsRegistry for snapshot IF.
@@ -416,10 +440,9 @@ public class HBaseStorageHandler extends DefaultStorageHandler
 
   @Override
   public DecomposedPredicate decomposePredicate(
-    JobConf jobConf,
-    Deserializer deserializer,
-    ExprNodeDesc predicate)
-  {
+      JobConf jobConf,
+      Deserializer deserializer,
+      ExprNodeDesc predicate) {
     HBaseKeyFactory keyFactory = ((HBaseSerDe) deserializer).getKeyFactory();
     return keyFactory.decomposePredicate(jobConf, deserializer, predicate);
   }
@@ -436,9 +459,9 @@ public class HBaseStorageHandler extends DefaultStorageHandler
     List<IndexSearchCondition> conditions = new ArrayList<IndexSearchCondition>();
     ExprNodeGenericFuncDesc pushedPredicate = null;
     ExprNodeGenericFuncDesc residualPredicate =
-        (ExprNodeGenericFuncDesc)analyzer.analyzePredicate(predicate, conditions);
+        (ExprNodeGenericFuncDesc) analyzer.analyzePredicate(predicate, conditions);
 
-    for (List<IndexSearchCondition> searchConditions:
+    for (List<IndexSearchCondition> searchConditions :
         HiveHBaseInputFormatUtil.decompose(conditions).values()) {
       int scSize = searchConditions.size();
       if (scSize < 1 || 2 < scSize) {
@@ -450,7 +473,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
         // 3. key < 20 and key > 10           (size = 2)
         // Add to residual
         residualPredicate =
-                extractResidualCondition(analyzer, searchConditions, residualPredicate);
+            extractResidualCondition(analyzer, searchConditions, residualPredicate);
         continue;
       }
       if (scSize == 2 &&
@@ -459,19 +482,19 @@ public class HBaseStorageHandler extends DefaultStorageHandler
         // If one of the predicates is =, then any other predicate with it is illegal.
         // Add to residual
         residualPredicate =
-                extractResidualCondition(analyzer, searchConditions, residualPredicate);
+            extractResidualCondition(analyzer, searchConditions, residualPredicate);
         continue;
       }
       boolean sameType = sameTypeIndexSearchConditions(searchConditions);
       if (!sameType) {
         // If type for column and constant are different, we currently do not support pushing them
         residualPredicate =
-                extractResidualCondition(analyzer, searchConditions, residualPredicate);
+            extractResidualCondition(analyzer, searchConditions, residualPredicate);
         continue;
       }
       TypeInfo typeInfo = searchConditions.get(0).getColumnDesc().getTypeInfo();
       if (typeInfo.getCategory() == Category.PRIMITIVE && PrimitiveObjectInspectorUtils.getPrimitiveGrouping(
-              ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory()) == PrimitiveGrouping.NUMERIC_GROUP) {
+          ((PrimitiveTypeInfo) typeInfo).getPrimitiveCategory()) == PrimitiveGrouping.NUMERIC_GROUP) {
         // If the predicate is on a numeric column, and it specifies an
         // open range e.g. key < 20 , we do not support conversion, as negative
         // values are lexicographically stored after positive values and thus they
@@ -480,13 +503,13 @@ public class HBaseStorageHandler extends DefaultStorageHandler
           boolean lowerBound = false;
           boolean upperBound = false;
           if (searchConditions.get(0).getComparisonOp().equals(GenericUDFOPEqualOrLessThan.class.getName()) ||
-                searchConditions.get(0).getComparisonOp().equals(GenericUDFOPLessThan.class.getName())) {
+              searchConditions.get(0).getComparisonOp().equals(GenericUDFOPLessThan.class.getName())) {
             lowerBound = true;
           } else {
             upperBound = true;
           }
           if (searchConditions.get(1).getComparisonOp().equals(GenericUDFOPEqualOrGreaterThan.class.getName()) ||
-                searchConditions.get(1).getComparisonOp().equals(GenericUDFOPGreaterThan.class.getName())) {
+              searchConditions.get(1).getComparisonOp().equals(GenericUDFOPGreaterThan.class.getName())) {
             upperBound = true;
           } else {
             lowerBound = true;
@@ -494,7 +517,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
           if (!upperBound || !lowerBound) {
             // Not valid range, add to residual
             residualPredicate =
-                    extractResidualCondition(analyzer, searchConditions, residualPredicate);
+                extractResidualCondition(analyzer, searchConditions, residualPredicate);
             continue;
           }
         } else {
@@ -502,7 +525,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
           if (!searchConditions.get(0).getComparisonOp().equals(GenericUDFOPEqual.class.getName())) {
             // Not valid range, add to residual
             residualPredicate =
-                    extractResidualCondition(analyzer, searchConditions, residualPredicate);
+                extractResidualCondition(analyzer, searchConditions, residualPredicate);
             continue;
           }
         }
@@ -510,7 +533,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
 
       // This one can be pushed
       pushedPredicate =
-              extractStorageHandlerCondition(analyzer, searchConditions, pushedPredicate);
+          extractStorageHandlerCondition(analyzer, searchConditions, pushedPredicate);
     }
 
     DecomposedPredicate decomposedPredicate = new DecomposedPredicate();
@@ -520,7 +543,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
   }
 
   private static ExprNodeGenericFuncDesc extractStorageHandlerCondition(IndexPredicateAnalyzer analyzer,
-          List<IndexSearchCondition> searchConditions, ExprNodeGenericFuncDesc inputExpr) {
+                                                                        List<IndexSearchCondition> searchConditions, ExprNodeGenericFuncDesc inputExpr) {
     if (inputExpr == null) {
       return analyzer.translateSearchConditions(searchConditions);
     }
@@ -528,11 +551,11 @@ public class HBaseStorageHandler extends DefaultStorageHandler
     children.add(analyzer.translateSearchConditions(searchConditions));
     children.add(inputExpr);
     return new ExprNodeGenericFuncDesc(TypeInfoFactory.booleanTypeInfo,
-            FunctionRegistry.getGenericUDFForAnd(), children);
+        FunctionRegistry.getGenericUDFForAnd(), children);
   }
 
   private static ExprNodeGenericFuncDesc extractResidualCondition(IndexPredicateAnalyzer analyzer,
-          List<IndexSearchCondition> searchConditions, ExprNodeGenericFuncDesc inputExpr) {
+                                                                  List<IndexSearchCondition> searchConditions, ExprNodeGenericFuncDesc inputExpr) {
     if (inputExpr == null) {
       return analyzer.translateOriginalConditions(searchConditions);
     }
@@ -540,7 +563,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
     children.add(analyzer.translateOriginalConditions(searchConditions));
     children.add(inputExpr);
     return new ExprNodeGenericFuncDesc(TypeInfoFactory.booleanTypeInfo,
-            FunctionRegistry.getGenericUDFForAnd(), children);
+        FunctionRegistry.getGenericUDFForAnd(), children);
   }
 
   private static boolean sameTypeIndexSearchConditions(List<IndexSearchCondition> searchConditions) {

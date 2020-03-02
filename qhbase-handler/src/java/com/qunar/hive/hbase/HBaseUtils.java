@@ -1,5 +1,6 @@
 package com.qunar.hive.hbase;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -13,8 +14,18 @@ import org.apache.hadoop.hbase.snapshot.SnapshotDoesNotExistException;
 import org.apache.hadoop.hbase.snapshot.SnapshotExistsException;
 import org.apache.hadoop.hive.ql.io.HiveKey;
 import org.apache.hadoop.hive.ql.session.SessionState;
+import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.hadoop.hive.serde2.AbstractSerDe;
+import org.apache.hadoop.hive.serde2.SerDeUtils;
+import org.apache.hadoop.hive.serde2.binarysortable.BinarySortableSerDe;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
+import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.SequenceFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -22,6 +33,8 @@ import java.util.Properties;
 
 
 public class HBaseUtils {
+  private static final Logger LOG = LoggerFactory.getLogger(HBaseUtils.class);
+
   private static String HADOOP_HOME = System.getenv("HADOOP_HOME");
   private static String HBASE_HOME = System.getenv("HBASE_HOME");
 
@@ -54,7 +67,7 @@ public class HBaseUtils {
 
   public static void delIfExistHfile(Configuration conf, String file) throws IOException {
     String hfilePath = conf.get(Constant.HFILE_FAMILY_PATH);
-    if (hfilePath!=null && hfilePath.length()>5 && file.contains(hfilePath)){
+    if (hfilePath != null && hfilePath.length() > 5 && file.contains(hfilePath)) {
       Path dst = new Path(file);
       FileSystem fs = dst.getFileSystem(conf);
       if (fs.exists(dst)) {
@@ -63,27 +76,86 @@ public class HBaseUtils {
     }
   }
 
-  public static void writePartitionFile(Configuration conf, String partitionFile, String tabName)
-      throws IOException {
+  static class RowKey {
+    public byte[] startKey;
+    public final static int fieldCount = 1;
 
+    public RowKey(byte[] startKey) {
+      this.startKey = startKey;
+    }
+
+    public byte[] getStartKey() {
+      return startKey;
+    }
+
+    public void setStartKey(byte[] startKey) {
+      this.startKey = startKey;
+    }
+  }
+
+  public static AbstractSerDe getSerDe(String fieldNames, String fieldTypes, String order, String nullOrder)
+      throws Throwable {
+    Properties schema = new Properties();
+    schema.setProperty(serdeConstants.LIST_COLUMNS, fieldNames);
+    schema.setProperty(serdeConstants.LIST_COLUMN_TYPES, fieldTypes);
+    schema.setProperty(serdeConstants.SERIALIZATION_SORT_ORDER, order);
+    schema.setProperty(serdeConstants.SERIALIZATION_NULL_SORT_ORDER, nullOrder);
+
+    BinarySortableSerDe serde = new BinarySortableSerDe();
+    SerDeUtils.initializeSerDe(serde, HBaseUtils.getConf(), schema, null);
+    return serde;
+  }
+
+  public static BytesWritable getBinarySort(RowKey startKey) throws Throwable {
+
+    StructObjectInspector rowOI = (StructObjectInspector) ObjectInspectorFactory
+        .getReflectionObjectInspector(RowKey.class,
+            ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+
+    String fieldNames = ObjectInspectorUtils.getFieldNames(rowOI);
+    String fieldTypes = ObjectInspectorUtils.getFieldTypes(rowOI);
+
+    String order;
+    order = StringUtils.leftPad("", RowKey.fieldCount, '+');
+    String nullOrder;
+    nullOrder = StringUtils.leftPad("", RowKey.fieldCount, 'a');
+
+    AbstractSerDe serde = getSerDe(fieldNames, fieldTypes,
+        order, nullOrder);
+    BytesWritable s = (BytesWritable) serde.serialize(startKey, rowOI);
+
+    return s;
+  }
+
+  public static void writePartitionFile(Configuration conf, String partitionFile, String tabName)
+      throws Throwable {
     byte[][] keys = getTabKeys(conf, tabName);
     Path dst = new Path(partitionFile);
     FileSystem fs = dst.getFileSystem(conf);
     if (fs.exists(dst)) {
       fs.delete(dst, false);
     }
-//        SequenceFile.Writer writer = SequenceFile.createWriter(fs,
-//            conf, dst, HiveKey.class, NullWritable.class, SequenceFile.CompressionType.valueOf(conf.get("mapred.output.compression.type")), new GzipCodec());
-//        SequenceFile.Writer writer = SequenceFile.createWriter(fs,
-//            conf, dst, HiveKey.class, NullWritable.class, SequenceFile.CompressionType.NONE, new GzipCodec());
-    SequenceFile.Writer writer = SequenceFile.createWriter(fs,
-        conf, dst, HiveKey.class, NullWritable.class, SequenceFile.CompressionType.valueOf(conf.get("mapred.output.compression.type")));
+
+//    SequenceFile.Writer writer = SequenceFile.createWriter(fs,
+//        conf, dst, HiveKey.class, NullWritable.class);
+//    SequenceFile.Writer writer = SequenceFile.createWriter(new Configuration(),
+//        SequenceFile.Writer.file(dst),
+//        SequenceFile.Writer.keyClass(HiveKey.class),
+//        SequenceFile.Writer.valueClass(NullWritable.class),
+//        SequenceFile.Writer.compression(SequenceFile.CompressionType.RECORD, new GzipCodec()));
+
+    SequenceFile.Writer writer = SequenceFile.createWriter(new Configuration(),
+        SequenceFile.Writer.file(dst),
+        SequenceFile.Writer.keyClass(HiveKey.class),
+        SequenceFile.Writer.valueClass(NullWritable.class));
+
     NullWritable nullValue = NullWritable.get();
     for (int i = 1; i < keys.length; ++i) {
-//            HiveKey hiveKey = new HiveKey();
-//            hiveKey.set(new BytesWritable(keys[i]));
-//            writer.append(hiveKey, nullValue);
-      writer.append(new HiveKey(keys[i], i), nullValue);
+      HiveKey hiveKey = new HiveKey();
+      BytesWritable bw = getBinarySort(new RowKey(keys[i]));
+      hiveKey.set(bw);
+      writer.append(hiveKey, nullValue);
+      writer.append(new HiveKey(keys[i], keys[i].hashCode()), nullValue);
     }
     writer.close();
   }
@@ -235,17 +307,17 @@ public class HBaseUtils {
     String hfilePrePath = jc.get(Constant.HFILE_FAMILY_PATH, tableProps.getProperty(Constant.HFILE_FAMILY_PATH));
     String hbaseName = tableProps.getProperty(Constant.HBASE_TABLE_NAME);
     String familyName = tableProps.getProperty(Constant.HBASE_TABLE_FAMILY_NAME);
-    return getHfilePath(hfilePrePath + "/__hfile_out_tmp/", hbaseName+"_"+familyName);
+    return getHfilePath(hfilePrePath + "/__hfile_out_tmp/", hbaseName + "_" + familyName);
   }
 
   public static String getPartitionFilePath(Configuration jc, Properties tableProps) {
     String hfilePrePath = jc.get(Constant.HFILE_FAMILY_PATH, tableProps.getProperty(Constant.HFILE_FAMILY_PATH));
     String hbaseName = tableProps.getProperty(Constant.HBASE_TABLE_NAME);
     String familyName = tableProps.getProperty(Constant.HBASE_TABLE_FAMILY_NAME);
-    return getHfilePath(hfilePrePath + "/__partition_file_path__/", hbaseName+"_"+familyName+"/000000_0");
+    return getHfilePath(hfilePrePath + "/__partition_file_path__/", hbaseName + "_" + familyName + "/000000_0");
   }
 
-  public static void main(String[] args) throws IOException {
+  public static void main(String[] args) throws Throwable {
     String partsFile = args[1];
     String tableName = args[0];
     HBaseUtils.writePartitionFile(HBaseUtils.getConf(), partsFile, tableName);

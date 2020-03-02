@@ -51,20 +51,21 @@ public class QPostExecuteHbaseHandler implements ExecuteWithHookContext {
     HiveConf sessionConf = sess.getConf();
 
     String hbaseHandlerType = "hive.hbase.handler.rwType";
-    LOG.info(hbaseHandlerType+"\tvalue="+variables.getOrDefault(hbaseHandlerType, ""));
+    LOG.info(hbaseHandlerType + "\tvalue=" + variables.getOrDefault(hbaseHandlerType, ""));
 
-    if(variables.getOrDefault(hbaseHandlerType, "").equals("read")){
+    if (variables.getOrDefault(hbaseHandlerType, "").equals("read")) {
       HBaseUtils.deleteSnapshot(sessionConf.getVar(HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME), HBaseConfiguration.create(sessionConf));
       LOG.info("delete snapshot success");
-      return;
-    }
-
-    sessionConf.setIntVar(HiveConf.ConfVars.HADOOPNUMREDUCERS, -1);
-    sessionConf.setVar(HiveConf.ConfVars.HIVEPARTITIONER, org.apache.hadoop.hive.ql.io.DefaultHivePartitioner.class.getName());
+    } else {
+      sessionConf.setIntVar(HiveConf.ConfVars.HADOOPNUMREDUCERS, -1);
+      sessionConf.setVar(HiveConf.ConfVars.HIVEPARTITIONER, org.apache.hadoop.hive.ql.io.DefaultHivePartitioner.class.getName());
+      sessionConf.set("mapreduce.totalorderpartitioner.path", "");
 
 //    Set<ReadEntity> inputs = hookContext.getInputs();
-    Set<WriteEntity> outputs = hookContext.getOutputs();
-    bulkLoad(hookContext, outputs);
+      Set<WriteEntity> outputs = hookContext.getOutputs();
+      bulkLoad(hookContext, outputs);
+      LOG.info("bulk load success");
+    }
 
     String peVal = sessionConf.getVar(HiveConf.ConfVars.POSTEXECHOOKS);
     String peValUp = peVal.replaceAll(QPostExecuteHbaseHandler.class.getName() + ",", "");
