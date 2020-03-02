@@ -155,7 +155,7 @@ public class HBaseUtils {
       BytesWritable bw = getBinarySort(new RowKey(keys[i]));
       hiveKey.set(bw);
       writer.append(hiveKey, nullValue);
-      writer.append(new HiveKey(keys[i], keys[i].hashCode()), nullValue);
+//      writer.append(new HiveKey(keys[i], keys[i].hashCode()), nullValue);
     }
     writer.close();
   }
