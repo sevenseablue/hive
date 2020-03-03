@@ -102,7 +102,7 @@ public class HBaseUtils {
     schema.setProperty(serdeConstants.SERIALIZATION_NULL_SORT_ORDER, nullOrder);
 
     BinarySortableSerDe serde = new BinarySortableSerDe();
-    SerDeUtils.initializeSerDe(serde, HBaseUtils.getConf(), schema, null);
+    SerDeUtils.initializeSerDe(serde, SessionState.get().getConf(), schema, null);
     return serde;
   }
 
