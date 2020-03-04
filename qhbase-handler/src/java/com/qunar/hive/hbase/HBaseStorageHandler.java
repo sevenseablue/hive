@@ -19,16 +19,20 @@
 package com.qunar.hive.hbase;
 
 import com.codahale.metrics.MetricRegistry;
+import com.google.common.annotations.VisibleForTesting;
 import com.qunar.hive.hbase.ColumnMappings.ColumnMapping;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.HTable;
+import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding;
 import org.apache.hadoop.hbase.mapred.TableOutputFormat;
-import org.apache.hadoop.hbase.mapreduce.TableInputFormatBase;
-import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
+import org.apache.hadoop.hbase.mapreduce.*;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.security.token.TokenUtil;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -65,6 +69,8 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -99,6 +105,36 @@ public class HBaseStorageHandler extends DefaultStorageHandler
       /** HBase config by which a BlockCache is sized. */
       "hfile.block.cache.size"
   };
+
+
+  private static final String OUTPUT_TABLE_NAME_CONF_KEY =
+      "hbase.mapreduce.hfileoutputformat.table.name";
+  // The following constants are private since these are used by
+  // HFileOutputFormat2 to internally transfer data between job setup and
+  // reducer run using conf.
+  // These should not be changed by the client.
+  private static final String COMPRESSION_FAMILIES_CONF_KEY =
+      "hbase.hfileoutputformat.families.compression";
+  private static final String BLOOM_TYPE_FAMILIES_CONF_KEY =
+      "hbase.hfileoutputformat.families.bloomtype";
+  private static final String BLOCK_SIZE_FAMILIES_CONF_KEY =
+      "hbase.mapreduce.hfileoutputformat.blocksize";
+  private static final String DATABLOCK_ENCODING_FAMILIES_CONF_KEY =
+      "hbase.mapreduce.hfileoutputformat.families.datablock.encoding";
+
+  // This constant is public since the client can modify this when setting
+  // up their conf object and thus refer to this symbol.
+  // It is present for backwards compatibility reasons. Use it only to
+  // override the auto-detection of datablock encoding.
+  public static final String DATABLOCK_ENCODING_OVERRIDE_CONF_KEY =
+      "hbase.mapreduce.hfileoutputformat.datablock.encoding";
+
+  /**
+   * Keep locality while generating HFiles for bulkload. See HBASE-12596
+   */
+  public static final String LOCALITY_SENSITIVE_CONF_KEY =
+      "hbase.bulkload.locality.sensitive.enabled";
+  private static final boolean DEFAULT_LOCALITY_SENSITIVE = true;
 
   final static public String DEFAULT_PREFIX = "default.";
 
@@ -333,6 +369,16 @@ public class HBaseStorageHandler extends DefaultStorageHandler
           LOG.info("HBaseUtils.getRegionNum...");
           int numReduce = HBaseUtils.getRegionNum(jobConf, tableName);
           HiveConf.setIntVar(jobConf, HiveConf.ConfVars.HADOOPNUMREDUCERS, numReduce);
+
+          jobConf.setBoolean(LOCALITY_SENSITIVE_CONF_KEY, DEFAULT_LOCALITY_SENSITIVE);
+          LOG.info("HBase Table config");
+          HTable hTable = new HTable(hbaseConf, tableName);
+          HTableDescriptor tableDescriptor = hTable.getTableDescriptor();
+          configureCompression(jobConf, tableDescriptor);
+          configureBloomType(tableDescriptor, jobConf);
+          configureBlockSize(tableDescriptor, jobConf);
+          configureDataBlockEncoding(tableDescriptor, jobConf);
+
         } catch (IOException e) {
           e.printStackTrace();
           throw new RuntimeException("get hbase table start keys fail exception.");
@@ -340,6 +386,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
           throwable.printStackTrace();
           throw new RuntimeException("hbase write partition file fail");
         }
+
       } else {
         jobProperties.put(TableOutputFormat.OUTPUT_TABLE, tableName);
       }
@@ -573,5 +620,145 @@ public class HBaseStorageHandler extends DefaultStorageHandler
       }
     }
     return true;
+  }
+
+
+
+  /**
+   * Serialize column family to compression algorithm map to configuration.
+   * Invoked while configuring the MR job for incremental load.
+   *
+   * @param conf to persist serialized values into
+   * @throws IOException
+   *           on failure to read column family descriptors
+   */
+  @edu.umd.cs.findbugs.annotations.SuppressWarnings(
+      value="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE")
+  @VisibleForTesting
+  static void configureCompression(Configuration conf, HTableDescriptor tableDescriptor)
+      throws UnsupportedEncodingException {
+    StringBuilder compressionConfigValue = new StringBuilder();
+    if(tableDescriptor == null){
+      // could happen with mock table instance
+      return;
+    }
+    Collection<HColumnDescriptor> families = tableDescriptor.getFamilies();
+    int i = 0;
+    for (HColumnDescriptor familyDescriptor : families) {
+      if (i++ > 0) {
+        compressionConfigValue.append('&');
+      }
+      compressionConfigValue.append(URLEncoder.encode(
+          familyDescriptor.getNameAsString(), "UTF-8"));
+      compressionConfigValue.append('=');
+      compressionConfigValue.append(URLEncoder.encode(
+          familyDescriptor.getCompression().getName(), "UTF-8"));
+    }
+    // Get rid of the last ampersand
+    conf.set(COMPRESSION_FAMILIES_CONF_KEY, compressionConfigValue.toString());
+  }
+
+  /**
+   * Serialize column family to block size map to configuration.
+   * Invoked while configuring the MR job for incremental load.
+   * @param tableDescriptor to read the properties from
+   * @param conf to persist serialized values into
+   *
+   * @throws IOException
+   *           on failure to read column family descriptors
+   */
+  @VisibleForTesting
+  static void configureBlockSize(HTableDescriptor tableDescriptor, Configuration conf)
+      throws UnsupportedEncodingException {
+    StringBuilder blockSizeConfigValue = new StringBuilder();
+    if (tableDescriptor == null) {
+      // could happen with mock table instance
+      return;
+    }
+    Collection<HColumnDescriptor> families = tableDescriptor.getFamilies();
+    int i = 0;
+    for (HColumnDescriptor familyDescriptor : families) {
+      if (i++ > 0) {
+        blockSizeConfigValue.append('&');
+      }
+      blockSizeConfigValue.append(URLEncoder.encode(
+          familyDescriptor.getNameAsString(), "UTF-8"));
+      blockSizeConfigValue.append('=');
+      blockSizeConfigValue.append(URLEncoder.encode(
+          String.valueOf(familyDescriptor.getBlocksize()), "UTF-8"));
+    }
+    // Get rid of the last ampersand
+    conf.set(BLOCK_SIZE_FAMILIES_CONF_KEY, blockSizeConfigValue.toString());
+  }
+
+  /**
+   * Serialize column family to bloom type map to configuration.
+   * Invoked while configuring the MR job for incremental load.
+   * @param tableDescriptor to read the properties from
+   * @param conf to persist serialized values into
+   *
+   * @throws IOException
+   *           on failure to read column family descriptors
+   */
+  @VisibleForTesting
+  static void configureBloomType(HTableDescriptor tableDescriptor, Configuration conf)
+      throws UnsupportedEncodingException {
+    if (tableDescriptor == null) {
+      // could happen with mock table instance
+      return;
+    }
+    StringBuilder bloomTypeConfigValue = new StringBuilder();
+    Collection<HColumnDescriptor> families = tableDescriptor.getFamilies();
+    int i = 0;
+    for (HColumnDescriptor familyDescriptor : families) {
+      if (i++ > 0) {
+        bloomTypeConfigValue.append('&');
+      }
+      bloomTypeConfigValue.append(URLEncoder.encode(
+          familyDescriptor.getNameAsString(), "UTF-8"));
+      bloomTypeConfigValue.append('=');
+      String bloomType = familyDescriptor.getBloomFilterType().toString();
+      if (bloomType == null) {
+        bloomType = HColumnDescriptor.DEFAULT_BLOOMFILTER;
+      }
+      bloomTypeConfigValue.append(URLEncoder.encode(bloomType, "UTF-8"));
+    }
+    conf.set(BLOOM_TYPE_FAMILIES_CONF_KEY, bloomTypeConfigValue.toString());
+  }
+
+  /**
+   * Serialize column family to data block encoding map to configuration.
+   * Invoked while configuring the MR job for incremental load.
+   *
+   * @param conf to persist serialized values into
+   * @throws IOException
+   *           on failure to read column family descriptors
+   */
+  @VisibleForTesting
+  static void configureDataBlockEncoding(HTableDescriptor tableDescriptor,
+                                         Configuration conf) throws UnsupportedEncodingException {
+    if (tableDescriptor == null) {
+      // could happen with mock table instance
+      return;
+    }
+    StringBuilder dataBlockEncodingConfigValue = new StringBuilder();
+    Collection<HColumnDescriptor> families = tableDescriptor.getFamilies();
+    int i = 0;
+    for (HColumnDescriptor familyDescriptor : families) {
+      if (i++ > 0) {
+        dataBlockEncodingConfigValue.append('&');
+      }
+      dataBlockEncodingConfigValue.append(
+          URLEncoder.encode(familyDescriptor.getNameAsString(), "UTF-8"));
+      dataBlockEncodingConfigValue.append('=');
+      DataBlockEncoding encoding = familyDescriptor.getDataBlockEncoding();
+      if (encoding == null) {
+        encoding = DataBlockEncoding.NONE;
+      }
+      dataBlockEncodingConfigValue.append(URLEncoder.encode(encoding.toString(),
+          "UTF-8"));
+    }
+    conf.set(DATABLOCK_ENCODING_FAMILIES_CONF_KEY,
+        dataBlockEncodingConfigValue.toString());
   }
 }
