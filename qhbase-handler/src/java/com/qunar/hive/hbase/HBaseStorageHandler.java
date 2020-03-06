@@ -282,10 +282,12 @@ public class HBaseStorageHandler extends DefaultStorageHandler
       variables.put(hbaseHandlerType, "read");
       String snapshotName = HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME);
       if (snapshotName != null) {
-        long currentTimeMillis = System.currentTimeMillis();
-        snapshotName = "hfile_snap_" + tableName.replace(":", "_") + "_" + currentTimeMillis;
-        HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME, snapshotName);
-        HBaseUtils.createSnapshot(snapshotName, tableName, hbaseConf);
+        if(snapshotName.equals("")) {
+          long currentTimeMillis = System.currentTimeMillis();
+          snapshotName = "hfile_snap_" + tableName.replace(":", "_") + "_" + currentTimeMillis;
+          HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME, snapshotName);
+          HBaseUtils.createSnapshot(snapshotName, tableName, hbaseConf);
+        }
         HBaseTableSnapshotInputFormatUtil.assertSupportsTableSnapshots();
 
         try {
