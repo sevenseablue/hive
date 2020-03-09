@@ -25,7 +25,6 @@ import java.util.Set;
 /**
  * When the hfile is successfully generated, it is moved to hbase in batches
  *
- * @author wanhong.qi
  */
 public class QPreExecuteHbaseHandler implements ExecuteWithHookContext {
 

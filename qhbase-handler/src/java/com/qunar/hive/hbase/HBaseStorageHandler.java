@@ -273,21 +273,18 @@ public class HBaseStorageHandler extends DefaultStorageHandler
 
     SessionState sess = SessionState.get();
     Map<String, String> variables = sess.getHiveVariables();
-    String hbaseHandlerType = "hive.hbase.handler.rwType";
 
     // do this for reconciling HBaseStorageHandler for use in HCatalog
     // check to see if this an input job or an outputjob
     if (this.configureInputJobProps) {
       LOG.info("Configuring input job properties");
-      variables.put(hbaseHandlerType, "read");
+      variables.put(Constant.HBASE_HANDLER_RWTYPE, "read");
       String snapshotName = HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME);
       if (snapshotName != null) {
-        if(snapshotName.equals("")) {
-          long currentTimeMillis = System.currentTimeMillis();
-          snapshotName = "hfile_snap_" + tableName.replace(":", "_") + "_" + currentTimeMillis;
-          HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME, snapshotName);
-          HBaseUtils.createSnapshot(snapshotName, tableName, hbaseConf);
-        }
+        long currentTimeMillis = System.currentTimeMillis();
+        snapshotName = "hfile_snap_" + tableName.replace(":", "_") + "_" + currentTimeMillis;
+        HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME, snapshotName);
+        HBaseUtils.createSnapshot(snapshotName, tableName, hbaseConf);
         HBaseTableSnapshotInputFormatUtil.assertSupportsTableSnapshots();
 
         try {
@@ -332,7 +329,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
       } //input job properties
     } else {
       LOG.info("Configuring output job properties");
-      variables.put(hbaseHandlerType, "write");
+      variables.put(Constant.HBASE_HANDLER_RWTYPE, "write");
       if (isHBaseGenerateHFiles(jobConf)) {
         // only support bulkload when a hfile.family.path has been specified.
         // TODO: support detecting cf's from column mapping
@@ -359,13 +356,13 @@ public class HBaseStorageHandler extends DefaultStorageHandler
             HiveConf.setVar(jobConf, HiveConf.ConfVars.HIVEPARTITIONER, HBaseTotalOrderPartitioner.class.getName());
           }
 
-          String partitionFile = sessionConf.get("mapreduce.totalorderpartitioner.path", "");
+          String partitionFile = sessionConf.get(Constant.TOTALORDRE_PARTITIONER_PATH, "");
           LOG.info("sessionConf partitionFile=" + partitionFile + ". written");
           if (partitionFile.equals("")) {
             partitionFile = HBaseUtils.getPartitionFilePath(jobConf, tableProperties);
             LOG.info("HBaseUtils partitionFile=" + partitionFile + ". writing...");
             HBaseUtils.writePartitionFile(jobConf, partitionFile, tableName);
-            jobConf.set("mapreduce.totalorderpartitioner.path", partitionFile);
+            jobConf.set(Constant.TOTALORDRE_PARTITIONER_PATH, partitionFile);
           }
 
           LOG.info("HBaseUtils.getRegionNum...");

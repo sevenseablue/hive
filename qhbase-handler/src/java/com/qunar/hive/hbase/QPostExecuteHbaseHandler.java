@@ -23,7 +23,6 @@ import org.apache.log4j.Logger;
 /**
  * When the hfile is successfully generated, it is moved to hbase in batches
  *
- * @author wanhong.qi
  */
 public class QPostExecuteHbaseHandler implements ExecuteWithHookContext {
 
@@ -50,16 +49,16 @@ public class QPostExecuteHbaseHandler implements ExecuteWithHookContext {
     Map<String, String> variables = sess.getHiveVariables();
     HiveConf sessionConf = sess.getConf();
 
-    String hbaseHandlerType = "hive.hbase.handler.rwType";
-    LOG.info(hbaseHandlerType + "\tvalue=" + variables.getOrDefault(hbaseHandlerType, ""));
+    LOG.info(Constant.HBASE_HANDLER_RWTYPE + "\tvalue=" + variables.getOrDefault(Constant.HBASE_HANDLER_RWTYPE, ""));
 
-    if (variables.getOrDefault(hbaseHandlerType, "").equals("read")) {
+    if (variables.getOrDefault(Constant.HBASE_HANDLER_RWTYPE, "").equals("read")) {
+      sessionConf.unset(HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME.varname);
       HBaseUtils.deleteSnapshot(sessionConf.getVar(HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME), HBaseConfiguration.create(sessionConf));
       LOG.info("delete snapshot success");
     } else {
       sessionConf.setIntVar(HiveConf.ConfVars.HADOOPNUMREDUCERS, -1);
       sessionConf.setVar(HiveConf.ConfVars.HIVEPARTITIONER, org.apache.hadoop.hive.ql.io.DefaultHivePartitioner.class.getName());
-      sessionConf.set("mapreduce.totalorderpartitioner.path", "");
+      sessionConf.unset(Constant.TOTALORDRE_PARTITIONER_PATH);
 
 //    Set<ReadEntity> inputs = hookContext.getInputs();
       Set<WriteEntity> outputs = hookContext.getOutputs();
